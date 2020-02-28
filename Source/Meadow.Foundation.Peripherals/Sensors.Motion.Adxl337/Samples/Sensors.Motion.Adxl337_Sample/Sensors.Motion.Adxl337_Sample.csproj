@@ -1,11 +1,10 @@
 <Project Sdk="Meadow.Sdk/1.1.0">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <OutputType>Exe</OutputType>
     <AssemblyName>App</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Meadow.Foundation" Version="0.13.0" />
-    <PackageReference Include="Meadow.Foundation.Sensors.Atmospheric.Adxl337" Version="" />
+    <ProjectReference Include="..\..\..\Sensors.Motion.Adxl377\Driver\Sensors.Motion.Adxl377\Sensors.Motion.Adxl377.csproj" />
   </ItemGroup>
 </Project>

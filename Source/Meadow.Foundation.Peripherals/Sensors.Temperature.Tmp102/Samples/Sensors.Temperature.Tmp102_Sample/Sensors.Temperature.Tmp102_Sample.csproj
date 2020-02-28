@@ -1,10 +1,10 @@
-<Project Sdk="Meadow.Sdk/1.1.0">
+﻿<Project Sdk="Meadow.Sdk/1.1.0">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <OutputType>Exe</OutputType>
     <AssemblyName>App</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Meadow.Foundation.Sensors.Motion.Tmp102" Version="" />
+    <ProjectReference Include="..\..\Driver\Sensors.Temperature.Tmp102\Sensors.Temperature.Tmp102.csproj" />
   </ItemGroup>
 </Project>

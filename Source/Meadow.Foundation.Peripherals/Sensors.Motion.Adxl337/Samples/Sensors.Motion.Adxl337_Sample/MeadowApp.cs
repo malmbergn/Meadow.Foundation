@@ -7,7 +7,7 @@ namespace MeadowApp
 {
     public class MeadowApp : App<F7Micro, MeadowApp>
     {
-        Adxl337 sensor;
+        Adxl377 sensor;
 
         public MeadowApp()
         {
@@ -18,7 +18,7 @@ namespace MeadowApp
         {
             Console.WriteLine("Initialize...");
 
-            sensor = new Adxl337(Device, Device.Pins.A01, Device.Pins.A02, Device.Pins.A03, 500);
+            sensor = new Adxl377(Device, Device.Pins.A01, Device.Pins.A02, Device.Pins.A03, 500);
 
             sensor.AccelerationChanged += Sensor_AccelerationChanged;
         }

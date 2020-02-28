@@ -1,11 +1,11 @@
 <Project Sdk="Meadow.Sdk/1.1.0">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <OutputType>Exe</OutputType>
     <AssemblyName>App</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Meadow.Foundation.Sensors.Motion.ArducamMini" Version="0.1.0" />
-    <PackageReference Include="Meadow.Foundation.Displays.TftSpi" Version="0.7.4" />
+    <ProjectReference Include="..\..\..\Displays.TftSpi\Driver\Displays.TFTSPI\Displays.TftSpi.csproj" />
   </ItemGroup>
 </Project>

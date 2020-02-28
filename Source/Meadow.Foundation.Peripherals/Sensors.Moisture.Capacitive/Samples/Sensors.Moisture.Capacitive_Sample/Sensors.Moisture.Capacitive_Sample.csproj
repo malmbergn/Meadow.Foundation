@@ -1,10 +1,10 @@
 <Project Sdk="Meadow.Sdk/1.1.0">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <OutputType>Exe</OutputType>
     <AssemblyName>App</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Meadow.Foundation.Sensors.Moisture.Capacitive" Version="0.5.4" />
+    <ProjectReference Include="..\..\Driver\Sensors.Moisture.Capacitive\Sensors.Moisture.Capacitive.csproj" />
   </ItemGroup>
 </Project>
