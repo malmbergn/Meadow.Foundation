@@ -164,21 +164,29 @@ namespace Meadow.Foundation.Sensors.Atmospheric
 
         public event EventHandler<AtmosphericConditionChangeResult> Updated = delegate { };
 
-        static float[] lookupK1Range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -0.8f, 0.0f, 0.0f, -0.2f, -0.5f, 0.0f, -1.0f, 0.0f, 0.0f };
+        protected static float[] lookupK1Range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -0.8f, 0.0f, 0.0f, -0.2f, -0.5f, 0.0f, -1.0f, 0.0f, 0.0f };
 
-        static float[] lookupk2Range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.1f, 0.7f, 0.0f, -0.8f, -0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+        protected static float[] lookupk2Range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.1f, 0.7f, 0.0f, -0.8f, -0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
         public Bme680(II2cBus i2CBus, I2cAddress busAddress = I2cAddress.Adddress0x76)
         {
             _bme680 = new Bme680I2C(i2CBus, (byte)busAddress);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="spi">SPI BUS</param>
+        /// <param name="chipSelect">SPI Chip select pin</param>
+        /// <remarks>
+        /// NOT TESTED
+        /// </remarks>
         public Bme680(ISpiBus spi, IDigitalOutputPort chipSelect)
         {
-            throw new NotImplementedException();
+            _bme680 = new Bme680SPI(spi, chipSelect);
         }
 
-        public void Initialize()
+        public virtual void Initialize()
         {
             _bme680.WriteRegister(_bme680.ResetRegister, 0xB6);
             Thread.Sleep(1);
@@ -200,7 +208,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _bme680.WriteRegister(Bme680Comms.Register.GasWaitRegister, 0x65);
         }
 
-        public async Task<Bme680AtmosphericConditions> ReadAsync(
+        public virtual async Task<Bme680AtmosphericConditions> ReadAsync(
             Oversample temperatureSampleCount = Oversample.OversampleX8,
             Oversample pressureSampleCount = Oversample.OversampleX4,
             Oversample humiditySampleCount = Oversample.OversampleX2,
@@ -212,20 +220,20 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _configuration.PressureOversampling = pressureSampleCount;
             _configuration.HumidityOverSampling = humiditySampleCount;
             _configuration.GasMode = gasMode;
-            _configuration.Mode = Modes.Forced;
             _configuration.Filter = filter;
 
 
             UpdateConfiguration(_configuration);
 
             var bme680Conditions = await ReadAsync();
+
             Conditions = bme680Conditions.Atmospheric;
             GasResistance = bme680Conditions.GasResistance;
 
             return bme680Conditions;
         }
 
-        public void StartUpdating(
+        public virtual void StartUpdating(
             Oversample temperatureSampleCount = Oversample.OversampleX8,
             Oversample pressureSampleCount = Oversample.OversampleX4,
             Oversample humiditySampleCount = Oversample.OversampleX2,
@@ -305,6 +313,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
 
                 var ctrl = _bme680.ReadRegister(Bme680Comms.Register.MeasurementRegister);
                 ctrl = (byte)((ctrl & 0xFC) | 0x01);//  # enable single shot!
+
                 _bme680.WriteRegister(Bme680Comms.Register.MeasurementRegister, ctrl);
 
                 byte tries = 10;
@@ -315,11 +324,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                     var gas_index = buff[0] & 0x0f;
                     var meas_index = buff[1];
 
-                    var presADC = (uint)(((uint)buff[2] * 4096) | ((uint)buff[3] * 16)
-                        | ((uint)buff[4] / 16));
+                    var presADC = (uint)(((uint)buff[2] * 4096) | ((uint)buff[3] * 16) | ((uint)buff[4] / 16));
 
-                    var tempADC = (uint)(((uint)buff[5] * 4096) | ((uint)buff[6] * 16)
-                        | ((uint)buff[7] / 16));
+                    var tempADC = (uint)(((uint)buff[5] * 4096) | ((uint)buff[6] * 16) | ((uint)buff[7] / 16));
 
                     var humADC = (ushort)(((uint)buff[8] * 256) | (uint)buff[9]);
                     var gasResADC = (ushort)((uint)buff[13] * 4 | (((uint)buff[14]) / 64));
@@ -349,11 +356,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             });
         }
 
-        void UpdateConfiguration(Configuration configuration)
+        protected void UpdateConfiguration(Configuration configuration)
         {
-            //
             //  Put to sleep to allow the configuration to be changed.
-            //
             _bme680.WriteRegister(Bme680Comms.Register.MeasurementRegister, 0x00);
 
             _bme680.WriteRegister(Bme680Comms.Register.ConfigRegister, (byte)(((byte)configuration.Filter) << 2));
@@ -369,7 +374,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _bme680.WriteRegister(Bme680Comms.Register.GasControlRegister, (byte)configuration.GasMode);
         }
 
-        void ReadCompensationData()
+        protected void ReadCompensationData()
         {
             var coeff1 = _bme680.ReadRegisters(0x89, 25);
             var coeff2 = _bme680.ReadRegisters(0xE1, 16);
@@ -408,7 +413,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _compensationData.SwErr = (sbyte)((_bme680.ReadRegister(0x04) & 0xF0) / 16);
         }
 
-        static float CalculateTemperature(uint tempADC, CompensationData compensationData)
+        protected static float CalculateTemperature(uint tempADC, CompensationData compensationData)
         {
             float var1 = 0;
             float var2 = 0;
@@ -432,7 +437,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return calc_temp;
         }
 
-        static float CalculatePressure(uint presADC, CompensationData compensationData)
+        protected static float CalculatePressure(uint presADC, CompensationData compensationData)
         {
             float var1 = 0;
             float var2 = 0;
@@ -468,7 +473,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return calc_pres;
         }
 
-        static float CalculateHumidity(ushort humADC, CompensationData compensationData)
+        protected static float CalculateHumidity(ushort humADC, CompensationData compensationData)
         {
             float temp_comp;
 
@@ -493,7 +498,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return calc_hum;
         }
 
-        static float CalculateGasResistance(ushort GasResADC, byte GasRange, CompensationData compensationData)
+        protected static float CalculateGasResistance(ushort GasResADC, byte GasRange, CompensationData compensationData)
         {
             float calc_gas_res;
 
@@ -507,11 +512,12 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return calc_gas_res;
         }
 
-        static float CalculateAltitude(float pressure, float seaLevelPressure)
+        protected static float CalculateAltitude(float pressure, float seaLevelPressure)
         {
             return (float)(44330.0 * (1.0 - Math.Pow((pressure / seaLevelPressure), 0.1903)));
         }
-        public class Configuration
+
+        protected class Configuration
         {
             /// <summary>
             ///     Temperature over sampling configuration.
