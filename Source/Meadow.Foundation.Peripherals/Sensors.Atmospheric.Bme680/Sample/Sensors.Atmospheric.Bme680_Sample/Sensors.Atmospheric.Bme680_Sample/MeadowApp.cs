@@ -67,9 +67,13 @@ namespace Sensors.Atmospheric.Bme680_Sample
             // just for funsies.
             Console.WriteLine($"ChipID: {bme680.ChipId:X2}");
 
-            // get an initial reading
-            ReadConditions().Wait();
-
+            while (true)
+            {
+                // get an initial reading
+                ReadConditions().Wait();
+                Thread.Sleep(3000);
+                Console.WriteLine("");
+            }
             // start updating continuously
             bme680.StartUpdating();
 
@@ -79,11 +83,11 @@ namespace Sensors.Atmospheric.Bme680_Sample
         {
             var conditions = await bme680.ReadAsync();
             Console.WriteLine("Initial Readings:");
-            Console.WriteLine($"  Temperature: {conditions.Atmospheric.Temperature:F}°C");
-            Console.WriteLine($"  Pressure: {conditions.Atmospheric.Pressure:F}hPa");
-            Console.WriteLine($"  Relative Humidity: {conditions.Atmospheric.Humidity:F}%");
+            Console.WriteLine($"  Temperature: {conditions.Temperature:F}°C");
+            Console.WriteLine($"  Pressure: {conditions.Pressure:F}hPa");
+            Console.WriteLine($"  Relative Humidity: {conditions.Humidity:F}%");
             Console.WriteLine($"  Gas Resistance: {conditions.GasResistance}ohms");
-            Console.WriteLine($"  Altitude: {bme680.Altitude:F}m");
+            Console.WriteLine($"  Altitude: {conditions.Altitude:F}m");
             Console.WriteLine($"");
         }
 

@@ -8,8 +8,6 @@
     <PackageReference Include="Meadow.Foundation" Version="0.*" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="Bme680">
-      <HintPath>..\..\..\Driver\Sensors.Atmospheric.Bme680\Sensors.Atmospheric.Bme680\bin\Debug\net472\Bme680.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\..\Driver\Sensors.Atmospheric.Bme680\Sensors.Atmospheric.Bme680\Sensors.Atmospheric.Bme680.csproj" />
   </ItemGroup>
 </Project>

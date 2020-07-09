@@ -96,13 +96,14 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// <summary>
         /// The Gas Resistance, in ohms, from the last reading..
         /// </summary>
-        public float GasResistance { get; protected set; }
+        public float GasResistance => ((Bme680AtmosphericConditions)Conditions).GasResistance.Value;
 
         /// <summary>
         /// The Aprox. altitude.
         /// Calculated the last pressure reading and the SeaLevelPressure
         /// </summary>
-        public float Altitude { get { return CalculateAltitude(Conditions.Pressure.Value, SeaLevelPressure); } }
+        public float Altitude => ((Bme680AtmosphericConditions)Conditions).Altitude.Value;
+
 
         /// <summary>
         /// The BME680 Id
@@ -206,6 +207,8 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             //set up heater
             _bme680.WriteRegister(Bme680Comms.Register.Heat0Register, 0x73);
             _bme680.WriteRegister(Bme680Comms.Register.GasWaitRegister, 0x65);
+
+            UpdateConfiguration(_configuration);
         }
 
         public virtual async Task<Bme680AtmosphericConditions> ReadAsync(
@@ -216,19 +219,15 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             FilterCoefficient filter = FilterCoefficient.Four)
         {
             // update confiruation for a one-off read
-            _configuration.TemperatureOverSampling = temperatureSampleCount;
-            _configuration.PressureOversampling = pressureSampleCount;
-            _configuration.HumidityOverSampling = humiditySampleCount;
-            _configuration.GasMode = gasMode;
-            _configuration.Filter = filter;
-
-
-            UpdateConfiguration(_configuration);
+            //_configuration.TemperatureOverSampling = temperatureSampleCount;
+            //_configuration.PressureOversampling = pressureSampleCount;
+            //_configuration.HumidityOverSampling = humiditySampleCount;
+            //_configuration.GasMode = gasMode;
+            //_configuration.Filter = filter;
 
             var bme680Conditions = await ReadAsync();
 
-            Conditions = bme680Conditions.Atmospheric;
-            GasResistance = bme680Conditions.GasResistance;
+            Conditions = bme680Conditions;
 
             return bme680Conditions;
         }
@@ -309,6 +308,8 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         {
             return await Task.Run(() =>
             {
+
+
                 Bme680AtmosphericConditions conditions = new Bme680AtmosphericConditions();
 
                 var ctrl = _bme680.ReadRegister(Bme680Comms.Register.MeasurementRegister);
@@ -338,11 +339,12 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                     if (((byte)status & 0x80) == 0x80)
                     {
                         tries = 0;
-                        conditions.Atmospheric.Temperature = CalculateTemperature(tempADC, _compensationData);
-                        conditions.Atmospheric.Pressure = CalculatePressure(presADC, _compensationData);
-                        conditions.Atmospheric.Humidity = CalculateHumidity(humADC, _compensationData);
-                        conditions.GasResistance = CalculateGasResistance(gasResADC, gasRange, _compensationData);
 
+                        conditions.Temperature = CalculateTemperature(tempADC);
+                        conditions.Pressure = CalculatePressure(presADC);
+                        conditions.Humidity = CalculateHumidity(humADC);
+                        conditions.GasResistance = CalculateGasResistance(gasResADC, gasRange);
+                        conditions.Altitude = CalculateAltitude(conditions.Pressure.Value, SeaLevelPressure);
                     }
                     else
                     {
@@ -413,55 +415,56 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _compensationData.SwErr = (sbyte)((_bme680.ReadRegister(0x04) & 0xF0) / 16);
         }
 
-        protected static float CalculateTemperature(uint tempADC, CompensationData compensationData)
+        float CalculateTemperature(uint tempAdc)
         {
             float var1 = 0;
             float var2 = 0;
             float calc_temp = 0;
 
             /* calculate var1 data */
-            var1 = ((tempADC / 16384.0f) - (compensationData.T1 / 1024.0f))
-                * (compensationData.T2);
+            var1 = ((tempAdc / 16384.0f) - (_compensationData.T1 / 1024.0f))
+                * (_compensationData.T2);
 
             /* calculate var2 data */
-            var2 = (((tempADC / 131072.0f) - (compensationData.T1 / 8192.0f)) *
-                ((tempADC / 131072.0f) - (compensationData.T1 / 8192.0f))) *
-                (compensationData.T3 * 16.0f);
+            var2 = (((tempAdc / 131072.0f) - (_compensationData.T1 / 8192.0f)) *
+                ((tempAdc / 131072.0f) - (_compensationData.T1 / 8192.0f))) *
+                (_compensationData.T3 * 16.0f);
 
-            /* fine value*/
-            compensationData.Fine = (var1 + var2);
+            /* t_fine value*/
+            _compensationData.Fine = (var1 + var2);
 
             /* compensated temperature data*/
-            calc_temp = ((compensationData.Fine) / 5120.0f);
-
+            calc_temp = ((_compensationData.Fine) / 5120.0f);
+            //Console.WriteLine($"calc_temp: {calc_temp}");
+            //Console.WriteLine($"calc_temp2: { ((_compensationData.Fine * 5) + 128) / 256}");
             return calc_temp;
         }
 
-        protected static float CalculatePressure(uint presADC, CompensationData compensationData)
+        float CalculatePressure(uint presAdc)
         {
             float var1 = 0;
             float var2 = 0;
             float var3 = 0;
             float calc_pres = 0;
 
-            var1 = (((float)compensationData.Fine / 2.0f) - 64000.0f);
-            var2 = var1 * var1 * (((float)compensationData.P6) / (131072.0f));
-            var2 = var2 + (var1 * ((float)compensationData.P5) * 2.0f);
-            var2 = (var2 / 4.0f) + (((float)compensationData.P4) * 65536.0f);
-            var1 = (((((float)compensationData.P3 * var1 * var1) / 16384.0f)
-                + ((float)compensationData.P2 * var1)) / 524288.0f);
-            var1 = ((1.0f + (var1 / 32768.0f)) * ((float)compensationData.P1));
-            calc_pres = (1048576.0f - ((float)presADC));
+            var1 = (((float)_compensationData.Fine / 2.0f) - 64000.0f);
+            var2 = var1 * var1 * (((float)_compensationData.P6) / (131072.0f));
+            var2 = var2 + (var1 * ((float)_compensationData.P5) * 2.0f);
+            var2 = (var2 / 4.0f) + (((float)_compensationData.P4) * 65536.0f);
+            var1 = (((((float)_compensationData.P3 * var1 * var1) / 16384.0f)
+                + ((float)_compensationData.P2 * var1)) / 524288.0f);
+            var1 = ((1.0f + (var1 / 32768.0f)) * ((float)_compensationData.P1));
+            calc_pres = (1048576.0f - ((float)presAdc));
 
             /* Avoid exception caused by division by zero */
             if ((int)var1 != 0)
             {
                 calc_pres = (((calc_pres - (var2 / 4096.0f)) * 6250.0f) / var1);
-                var1 = (((float)compensationData.P9) * calc_pres * calc_pres) / 2147483648.0f;
-                var2 = calc_pres * (((float)compensationData.P8) / 32768.0f);
+                var1 = (((float)_compensationData.P9) * calc_pres * calc_pres) / 2147483648.0f;
+                var2 = calc_pres * (((float)_compensationData.P8) / 32768.0f);
                 var3 = ((calc_pres / 256.0f) * (calc_pres / 256.0f) * (calc_pres / 256.0f)
-                    * (compensationData.P10 / 131072.0f));
-                calc_pres = (calc_pres + (var1 + var2 + var3 + ((float)compensationData.P7 * 128.0f)) / 16.0f);
+                    * (_compensationData.P10 / 131072.0f));
+                calc_pres = (calc_pres + (var1 + var2 + var3 + ((float)_compensationData.P7 * 128.0f)) / 16.0f);
                 calc_pres /= 100;
             }
             else
@@ -473,46 +476,62 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return calc_pres;
         }
 
-        protected static float CalculateHumidity(ushort humADC, CompensationData compensationData)
+        float CalculateHumidity(ushort humAdc)
         {
+            float calc_hum = 0;
+            float var1 = 0;
+            float var2 = 0;
+            float var3 = 0;
+            float var4 = 0;
             float temp_comp;
 
             /* compensated temperature data*/
-            temp_comp = ((compensationData.Fine) / 5120.0f);
-            float var1 = humADC - (compensationData.H1 * 16.0f + compensationData.H3 / 2.0f * temp_comp);
+            temp_comp = ((_compensationData.Fine) / 5120.0f);
+            var1 = (float)((float)humAdc) - (((float)_compensationData.H1 * 16.0f) + (((float)_compensationData.H3 / 2.0f)
+                * temp_comp));
 
-            float var2 = var1 * (float)(compensationData.H2 / 262144.0f * (1.0f + compensationData.H4 / 16384.0f * temp_comp + compensationData.H5 / 1048576.0f * temp_comp * temp_comp));
+            var2 = var1 * ((float)(((float)_compensationData.H2 / 262144.0f) * (1.0f + (((float)_compensationData.H4 / 16384.0f)
+                * temp_comp) + (((float)_compensationData.H5 / 1048576.0f) * temp_comp * temp_comp))));
 
-            float var3 = compensationData.H6 / 16384.0f;
+            var3 = (float)_compensationData.H6 / 16384.0f;
 
-            float var4 = compensationData.H7 / 2097152.0f;
+            var4 = (float)_compensationData.H7 / 2097152.0f;
 
-            float calc_hum = var2 + (var3 + var4 * temp_comp) * var2 * var2;
+            calc_hum = var2 + ((var3 + (var4 * temp_comp)) * var2 * var2);
 
             if (calc_hum > 100.0f)
                 calc_hum = 100.0f;
             else if (calc_hum < 0.0f)
                 calc_hum = 0.0f;
 
+            //Console.WriteLine($"calc_hum: {calc_hum}");
 
             return calc_hum;
         }
 
-        protected static float CalculateGasResistance(ushort GasResADC, byte GasRange, CompensationData compensationData)
+        float CalculateGasResistance(ushort gasResAdc, byte gasRange)
         {
             float calc_gas_res;
+            float var1 = 0;
+            float var2 = 0;
+            float var3 = 0;
 
-            float var1 = 1340.0f + 5.0f * compensationData.SwErr;
-            float var2 = var1 * (1.0f + lookupK1Range[GasRange] / 100.0f);
-            float var3 = 1.0f + lookupk2Range[GasRange] / 100.0f;
+            float[] lookup_k1_range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -0.8f, 0.0f, 0.0f, -0.2f, -0.5f, 0.0f, -1.0f, 0.0f, 0.0f };
 
-            calc_gas_res = 1.0f / (float)(var3 * (0.000000125f) * (float)(1 << GasRange) * (((((float)GasResADC)
+            float[] lookup_k2_range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.1f, 0.7f, 0.0f, -0.8f, -0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+            var1 = (1340.0f + (5.0f * _compensationData.SwErr));
+            var2 = (var1) * (1.0f + lookup_k1_range[gasRange] / 100.0f);
+            var3 = 1.0f + (lookup_k2_range[gasRange] / 100.0f);
+
+            calc_gas_res = 1.0f / (float)(var3 * (0.000000125f) * (float)(1 << gasRange) * (((((float)gasResAdc)
                 - 512.0f) / var2) + 1.0f));
 
+            // Console.WriteLine($"calc_gas_res: {calc_gas_res}");
             return calc_gas_res;
         }
 
-        protected static float CalculateAltitude(float pressure, float seaLevelPressure)
+        protected float CalculateAltitude(float pressure, float seaLevelPressure)
         {
             return (float)(44330.0 * (1.0 - Math.Pow((pressure / seaLevelPressure), 0.1903)));
         }
@@ -548,11 +567,10 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             public GasModes GasMode { get; set; }
         }
 
-        public class Bme680AtmosphericConditions
+        public class Bme680AtmosphericConditions : AtmosphericConditions
         {
-            public AtmosphericConditions Atmospheric { get; set; } = new AtmosphericConditions();
-            public float GasResistance { get; set; }
-
+            public float? GasResistance { get; set; }
+            public float? Altitude { get; set; }
         }
     }
 }
