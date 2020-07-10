@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Sensors.Light
     /// <summary>
     /// Represents the VCNL4010 Light/Proximity sensor
     /// </summary>
-    public class VCNL4010
+    public class VCNL4010 : FilterableObservableBase<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>
     {
         /// <summary>
         /// Proximity measurements Frequency inmeasurements/sec
@@ -29,6 +29,7 @@ namespace Meadow.Foundation.Sensors.Light
         }
 
         public byte Id { get; set; }
+        public bool IsSampling { get; protected set; } = false;
 
         protected const byte DefaultAddress = 0x13;
         protected const byte CommandRegister = 0x80;
@@ -49,6 +50,12 @@ namespace Meadow.Foundation.Sensors.Light
         protected const float AmbientLuxScale = 0.25f;
 
         protected readonly II2cPeripheral i2CPeripheral;
+        protected Vcnl4010Conditions Conditions { get; set; }
+
+        public event EventHandler<Vcnl4010ConditionChangeResult> Updated = delegate { };
+
+        private object _lock = new object();
+        private CancellationTokenSource SamplingTokenSource;
 
         public VCNL4010(II2cBus i2CBus)
         {
@@ -175,6 +182,97 @@ namespace Meadow.Foundation.Sensors.Light
         public virtual float AmbientLux()
         {
             return Ambient() * AmbientLuxScale;
+        }
+
+        public void StartUpdating(bool enableAmbient = true, bool enableProximity = true, int standbyDuration = 1000)
+        {
+
+            // thread safety
+            lock (_lock)
+            {
+                if (IsSampling) return;
+
+                // state muh-cheen
+                IsSampling = true;
+
+                SamplingTokenSource = new CancellationTokenSource();
+                CancellationToken ct = SamplingTokenSource.Token;
+
+                Vcnl4010Conditions oldConditions;
+                Vcnl4010ConditionChangeResult result;
+
+                
+
+                Task.Factory.StartNew(async () => {
+                    
+                    Conditions = await ReadAsync(enableAmbient, enableProximity);
+                    await Task.Delay(50);
+
+                    while (true)
+                    {
+
+                        if (ct.IsCancellationRequested)
+                        {
+
+                            // do task clean up here
+                            _observers.ForEach(x => x.OnCompleted());
+                            break;
+                        }
+
+                        // capture history
+                        oldConditions = Vcnl4010Conditions.From(Conditions);
+
+                        // read
+                        Conditions = await ReadAsync(enableAmbient, enableProximity);
+
+                        // build a new result with the old and new conditions
+                        result = new Vcnl4010ConditionChangeResult(Conditions, oldConditions);
+
+                        // let everyone know
+                        RaiseChangedAndNotify(result);
+
+                        // sleep for the appropriate interval
+                        await Task.Delay(standbyDuration);
+                    }
+                }, SamplingTokenSource.Token);
+            }
+        }
+
+        public void StopUpdating()
+        {
+            lock (_lock)
+            {
+                if (!IsSampling) return;
+
+                SamplingTokenSource?.Cancel();
+
+                // state muh-cheen
+                IsSampling = false;
+            }
+        }
+
+        protected async Task<Vcnl4010Conditions> ReadAsync(bool enableAmbient, bool enableProximity)
+        {
+            return await Task.Run(() =>
+            {
+                Vcnl4010Conditions conditions = new Vcnl4010Conditions();
+                if (enableAmbient)
+                {
+                    conditions.Ambient = Ambient();
+                    conditions.Lux = conditions.Ambient * AmbientLuxScale;
+                }
+
+                if(enableProximity)
+                    conditions.Proximity = Proximity();
+                
+                return conditions;
+            });
+        }
+
+        protected void RaiseChangedAndNotify(Vcnl4010ConditionChangeResult changeResult)
+        {
+            Updated?.Invoke(this, changeResult);
+            base.NotifyObservers(changeResult);
         }
     }
 }
