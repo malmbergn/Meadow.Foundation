@@ -14,7 +14,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         internal enum Register : byte
         {
             Heat0Register = 0x5A,
-            GasWaitRegister = 0x64,
+            GasWait0Register = 0x64,
             MeasurementRegister = 0x74,
             ConfigRegister = 0x75,
             HumidityControlRegister = 0x72,

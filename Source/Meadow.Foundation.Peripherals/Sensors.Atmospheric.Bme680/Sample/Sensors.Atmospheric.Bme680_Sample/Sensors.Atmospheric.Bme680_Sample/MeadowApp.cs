@@ -38,21 +38,24 @@ namespace Sensors.Atmospheric.Bme680_Sample
             // Example that uses an IObersvable subscription to only be notified
             // when the temperature changes by at least a degree, and humidty by 5%.
             // (blowing hot breath on the sensor should trigger)
-            //bme680.Subscribe(new FilterableObserver<AtmosphericConditionChangeResult, AtmosphericConditions>(
-            //    h => {
-            //        Console.WriteLine($"Temp and pressure changed by threshold; new temp: {h.New.Temperature}, old: {h.Old.Temperature}");
-            //    },
-            //    e => {
-            //        return (
-            //            (Math.Abs(e.Delta.Temperature.Value) > 1)
-            //            &&
-            //            (Math.Abs(e.Delta.Pressure.Value) > 5)
-            //            );
-            //    }
-            //    ));
+            bme680.Subscribe(new FilterableObserver<AtmosphericConditionChangeResult, AtmosphericConditions>(
+                h =>
+                {
+                    Console.WriteLine($"Temp or pressure changed by threshold; new temp: {h.New.Temperature}, old: {h.Old.Temperature}");
+                },
+                e =>
+                {
+                    return (
+                        (Math.Abs(e.Delta.Temperature.Value) > 1)
+                        ||
+                        (Math.Abs(e.Delta.Pressure.Value) > 5)
+                        );
+                }
+                ));
 
             // classical .NET events can also be used:
-            //bme680.Updated += (object sender, AtmosphericConditionChangeResult e) => {
+            //bme680.Updated += (object sender, AtmosphericConditionChangeResult e) =>
+            //{
             //    Console.WriteLine($"Temperature: {e.New.Temperature:F} C");
             //    Console.WriteLine($"Pressure: {e.New.Pressure:F}hPa");
             //    Console.WriteLine($"Relative Humidity: {e.New.Humidity:F}%");
@@ -67,13 +70,9 @@ namespace Sensors.Atmospheric.Bme680_Sample
             // just for funsies.
             Console.WriteLine($"ChipID: {bme680.ChipId:X2}");
 
-            while (true)
-            {
-                // get an initial reading
-                ReadConditions().Wait();
-                Thread.Sleep(3000);
-                Console.WriteLine("");
-            }
+            // get an initial reading
+            ReadConditions().Wait();
+
             // start updating continuously
             bme680.StartUpdating();
 
