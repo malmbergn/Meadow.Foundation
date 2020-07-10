@@ -29,9 +29,20 @@ namespace Sensors.Light.Vcnl4010_Sample
         void Run()
         {
             Console.WriteLine("Run...");
+            Console.WriteLine($"Id: {vcnl4010.Id}");
+
             while (true)
             {
                 var ambient = vcnl4010.Ambient();
+                Console.WriteLine($"Ambient: {ambient}");
+                Thread.Sleep(1000);
+
+                var lux = vcnl4010.AmbientLux();
+                Console.WriteLine($"Lux: {lux}");
+                Thread.Sleep(1000);
+
+                var prox = vcnl4010.Proximity();
+                Console.WriteLine($"Proximity: {prox}");
                 Thread.Sleep(1000);
             }
         }

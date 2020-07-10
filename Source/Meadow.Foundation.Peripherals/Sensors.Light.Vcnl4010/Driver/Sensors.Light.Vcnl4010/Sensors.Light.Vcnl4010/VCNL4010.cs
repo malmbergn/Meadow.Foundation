@@ -8,9 +8,14 @@ using System.Threading.Tasks;
 
 namespace Meadow.Foundation.Sensors.Light
 {
+    /// <summary>
+    /// Represents the VCNL4010 Light/Proximity sensor
+    /// </summary>
     public class VCNL4010
     {
-        //measurements/sec
+        /// <summary>
+        /// Proximity measurements Frequency inmeasurements/sec
+        /// </summary>
         public enum Frequency : byte
         {
             _1_95 = 0x00,    // 1.95
@@ -22,6 +27,8 @@ namespace Meadow.Foundation.Sensors.Light
             _125 = 0x06,     // 125
             _250 = 0x07,     // 250
         }
+
+        public byte Id { get; set; }
 
         protected const byte DefaultAddress = 0x13;
         protected const byte CommandRegister = 0x80;
@@ -35,8 +42,8 @@ namespace Meadow.Foundation.Sensors.Light
         protected const byte ProximityAdjustRegister = 0x8A;
         protected const byte IntStatRegister = 0x8E;
         protected const byte ModeTimingRegister = 0x8F;
-        protected const byte MeasureAmbientRegister = 0x10;
-        protected const byte MeasureProximityRegister = 0x08;
+        protected const byte MeasureAmbientCommand = 0x10;
+        protected const byte MeasureProximityCommand = 0x08;
         protected const byte AmbientReadyRegister = 0x40;
         protected const byte ProximityReadyRegister = 0x20;
         protected const float AmbientLuxScale = 0.25f;
@@ -46,51 +53,75 @@ namespace Meadow.Foundation.Sensors.Light
         public VCNL4010(II2cBus i2CBus)
         {
             i2CPeripheral = new I2cPeripheral(i2CBus, DefaultAddress);
+
+            Initialize();
         }
 
-        public void Initialize()
+        protected virtual void Initialize()
         {
-            var revision = i2CPeripheral.ReadRegister(ProductIdRegister);
-            Console.WriteLine($"id: {revision}");
+            Id = i2CPeripheral.ReadRegister(ProductIdRegister);
 
-            if ((revision & 0xF0) != 0x20)
+            if ((Id & 0xF0) != 0x20)
                 throw new Exception("Failed to find VCNL4010, check wiring!");
 
-            SetLedCurrent(20);
+            SetLedCurrent(200);
             SetFrequency(Frequency._16_625); // 16.625 readings/second
 
             i2CPeripheral.WriteRegister(InterruptControlRegister, 0x08);
         }
 
-        void SetLedCurrent(byte value)
+        /// <summary>
+        /// Set the LED current value for proximity measurement.
+        /// </summary>
+        /// <param name="value">Values from 0-200.
+        /// The value is adjustable in steps of 10 mA from 0 mA to 200 mA.
+        /// </param>
+        public void SetLedCurrent(byte value)
         {
             if (value < 0)
                 value = 0;
 
-            if (value > 20)
-                value = 20;
+            if (value > 200)
+                value = 200;
 
+            byte intValue = (byte)(value / 10);
+            intValue *= 10;
 
-            i2CPeripheral.WriteRegister(IrLedRegister, value);
+            i2CPeripheral.WriteRegister(IrLedRegister, intValue);
 
         }
 
-        byte GetLedCurrent()
+        /// <summary>
+        /// Gets the LED current
+        /// </summary>
+        /// <returns></returns>
+        public byte GetLedCurrent()
         {
             return (byte)(i2CPeripheral.ReadRegister(ProxRateRegister) & 0x3F);
         }
 
-        void SetFrequency(Frequency frequency)
+        /// <summary>
+        /// The frequency of proximity measurements
+        /// </summary>
+        /// <param name="frequency">The Frequency</param>
+        public void SetFrequency(Frequency frequency)
         {
             i2CPeripheral.WriteRegister(ProxRateRegister, (byte)frequency);
-
         }
 
-        byte GetFrequency()
+        /// <summary>
+        /// Gets the current set Frequency
+        /// </summary>
+        /// <returns></returns>
+        public byte GetFrequency()
         {
             return (byte)((i2CPeripheral.ReadRegister(ModeTimingRegister) >> 3) & 0x03);
         }
 
+        /// <summary>
+        /// Get the Proximity value
+        /// </summary>
+        /// <returns>Unit-less unsigned 16-bit value (0-65535)</returns>
         public ushort Proximity()
         {
             var status = i2CPeripheral.ReadRegister(IntStatRegister);
@@ -98,21 +129,24 @@ namespace Meadow.Foundation.Sensors.Light
 
             i2CPeripheral.WriteRegister(IntStatRegister, status);
 
-            i2CPeripheral.WriteRegister(CommandRegister, MeasureProximityRegister);
+            i2CPeripheral.WriteRegister(CommandRegister, MeasureProximityCommand);
 
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 50; i++)
             {
                 byte result = i2CPeripheral.ReadRegister(CommandRegister);
-                Console.WriteLine(result);
-                if ((result & ProximityReadyRegister) == 1)
+                if ((result & ProximityReadyRegister) == ProximityReadyRegister)
                     return i2CPeripheral.ReadUShort(ProximityDataRegister, Meadow.ByteOrder.BigEndian);
 
                 Thread.Sleep(1);
             }
 
-            return i2CPeripheral.ReadUShort(ProximityDataRegister, Meadow.ByteOrder.BigEndian);
+            return ushort.MaxValue;
         }
 
+        /// <summary>
+        /// The detected ambient light in front of the sensor
+        /// </summary>
+        /// <returns>Unit-less unsigned 16-bit value (0-65535)</returns>
         public ushort Ambient()
         {
             var status = i2CPeripheral.ReadRegister(IntStatRegister);
@@ -120,22 +154,25 @@ namespace Meadow.Foundation.Sensors.Light
 
             i2CPeripheral.WriteRegister(IntStatRegister, status);
 
-            i2CPeripheral.WriteRegister(CommandRegister, MeasureAmbientRegister);
+            i2CPeripheral.WriteRegister(CommandRegister, MeasureAmbientCommand);
 
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 50; i++)
             {
                 byte result = i2CPeripheral.ReadRegister(CommandRegister);
-                Console.WriteLine(result);
-                if ((result & ProximityReadyRegister) == 1)
+                if ((result & AmbientReadyRegister) == AmbientReadyRegister)
                     return i2CPeripheral.ReadUShort(AmbientDataRegister, Meadow.ByteOrder.BigEndian);
 
                 Thread.Sleep(1);
             }
 
-            return i2CPeripheral.ReadUShort(AmbientDataRegister, Meadow.ByteOrder.BigEndian);
+            return ushort.MaxValue;
         }
 
-        public float AmbientLux()
+        /// <summary>
+        /// The detected ambient light in front of the sensor as a value in lux
+        /// </summary>
+        /// <returns></returns>
+        public virtual float AmbientLux()
         {
             return Ambient() * AmbientLuxScale;
         }
