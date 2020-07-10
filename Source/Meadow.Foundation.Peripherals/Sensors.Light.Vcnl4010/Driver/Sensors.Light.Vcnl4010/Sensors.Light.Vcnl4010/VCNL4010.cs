@@ -11,6 +11,9 @@ namespace Meadow.Foundation.Sensors.Light
     /// <summary>
     /// Represents the VCNL4010 Light/Proximity sensor
     /// </summary>
+    /// <remarks>
+    /// Default I2C Address is 0x13
+    /// </remarks>
     public class VCNL4010 : FilterableObservableBase<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>
     {
         /// <summary>
@@ -28,7 +31,11 @@ namespace Meadow.Foundation.Sensors.Light
             _250 = 0x07,     // 250
         }
 
+        /// <summary>
+        /// The Id of the VCNL4010
+        /// </summary>
         public byte Id { get; set; }
+
         public bool IsSampling { get; protected set; } = false;
 
         protected const byte DefaultAddress = 0x13;
@@ -50,6 +57,7 @@ namespace Meadow.Foundation.Sensors.Light
         protected const float AmbientLuxScale = 0.25f;
 
         protected readonly II2cPeripheral i2CPeripheral;
+
         protected Vcnl4010Conditions Conditions { get; set; }
 
         public event EventHandler<Vcnl4010ConditionChangeResult> Updated = delegate { };
@@ -184,8 +192,16 @@ namespace Meadow.Foundation.Sensors.Light
             return Ambient() * AmbientLuxScale;
         }
 
+        /// <summary>
+        /// Start Sampling the sensor every X seconds and report the results via the eventing system
+        /// </summary>
+        /// <param name="enableAmbient">True = Get Ambient/Lux measurement. False = Skip</param>
+        /// <param name="enableProximity">True = Get Proximity measurement. False = Skip</param>
+        /// <param name="standbyDuration">Polling duration. >= 0</param>
         public void StartUpdating(bool enableAmbient = true, bool enableProximity = true, int standbyDuration = 1000)
         {
+            if (standbyDuration <= 0)
+                throw new ArgumentException("standbyDuration has to be >= 0", nameof(standbyDuration));
 
             // thread safety
             lock (_lock)
@@ -238,6 +254,9 @@ namespace Meadow.Foundation.Sensors.Light
             }
         }
 
+        /// <summary>
+        /// Stop polling the sensor
+        /// </summary>
         public void StopUpdating()
         {
             lock (_lock)
