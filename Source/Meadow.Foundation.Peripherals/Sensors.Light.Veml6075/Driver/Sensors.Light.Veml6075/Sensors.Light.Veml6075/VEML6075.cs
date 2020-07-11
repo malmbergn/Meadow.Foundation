@@ -62,7 +62,7 @@ namespace Meadow.Foundation.Sensors.Light
 
         protected void Initialize(IntegrationtTme integrationtTme = IntegrationtTme._50MS, bool highDynamic = true)
         {
-            Id = _i2CPeripheral.ReadUShort(IdRegister, ByteOrder.BigEndian);
+            Id = _i2CPeripheral.ReadUShort(IdRegister, ByteOrder.LittleEndian);
 
             //shutdown
             SetPowerState(false);
@@ -165,7 +165,7 @@ namespace Meadow.Foundation.Sensors.Light
         {
             if (IsForceModeOn())
             {
-                var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+                var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
                 config |= 0x04;
                 _i2CPeripheral.WriteUShort(ConfigRegister, config);
                 Thread.Sleep(2);
@@ -175,11 +175,11 @@ namespace Meadow.Foundation.Sensors.Light
                 Thread.Sleep(1);
             }
 
-            var uva = _i2CPeripheral.ReadUShort(UvaRegister, ByteOrder.BigEndian);
-            var uvb = _i2CPeripheral.ReadUShort(UvbRegister, ByteOrder.BigEndian);
+            var uva = _i2CPeripheral.ReadUShort(UvaRegister, ByteOrder.LittleEndian);
+            var uvb = _i2CPeripheral.ReadUShort(UvbRegister, ByteOrder.LittleEndian);
 
-            var uvcomp1 = _i2CPeripheral.ReadUShort(UvComp1Register, ByteOrder.BigEndian);
-            var uvcomp2 = _i2CPeripheral.ReadUShort(UvComp2Register, ByteOrder.BigEndian);
+            var uvcomp1 = _i2CPeripheral.ReadUShort(UvComp1Register, ByteOrder.LittleEndian);
+            var uvcomp2 = _i2CPeripheral.ReadUShort(UvComp2Register, ByteOrder.LittleEndian);
 
             var _uvaCalc = uva - (UvaACoefficient * uvcomp1) - (UvaBCoefficient * uvcomp2);
             var _uvbCalc = uvb - (UvbCCoefficient * uvcomp1) - (UvbDCoefficient * uvcomp2);
@@ -190,7 +190,7 @@ namespace Meadow.Foundation.Sensors.Light
 
         public void SetIntegrationTime(IntegrationtTme itime)
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
 
             //Intergation time values are bits 4-6
             var newConfig = (byte)((((byte)itime << 4) & 0b10001111) & config);
@@ -199,13 +199,13 @@ namespace Meadow.Foundation.Sensors.Light
 
         public IntegrationtTme GetIntegrationTime()
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
             return (IntegrationtTme)((byte)((config >> 4) & 0x07));
         }
 
         public void SetDynamicSetting(bool isHigh)
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
 
             if (isHigh)
                 config |= 0x08;
@@ -217,7 +217,7 @@ namespace Meadow.Foundation.Sensors.Light
 
         public void SetPowerState(bool powerOn)
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
 
             if (powerOn)
                 config &= 0b11111110;
@@ -230,13 +230,13 @@ namespace Meadow.Foundation.Sensors.Light
 
         public bool IsPowerStateOn()
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
             return ((config & 0x01) == 0x01) ? false : true;
         }
 
         public void SetForceMode(bool forceMode)
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
 
             if (forceMode)
                 config |= 0x02;
@@ -249,7 +249,7 @@ namespace Meadow.Foundation.Sensors.Light
 
         public bool IsForceModeOn()
         {
-            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.BigEndian);
+            var config = _i2CPeripheral.ReadUShort(ConfigRegister, ByteOrder.LittleEndian);
             return ((config & 0x02) == 0x02) ? true : false;
         }
 
