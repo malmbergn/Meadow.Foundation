@@ -8,8 +8,7 @@ using Meadow.Peripherals.Sensors.Temperature;
 
 namespace Meadow.Foundation.Sensors.Atmospheric
 {
-    public class Bme680 : FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>, IAtmosphericSensor
-        , ITemperatureSensor, IHumiditySensor, IBarometricPressureSensor
+    public class Bme680 : FilterableObservableBase<AtmosphericConditionPlusGasChangeResult, AtmosphericPlusGasConditions>
     {
         /// <summary>
         ///     Valid oversampling values.
@@ -76,7 +75,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public enum GasModes : byte
         {
             Disabled = 0x00,
-            Enabled = 0x10
+            Enabled = 0x01
         }
 
         public enum I2cAddress : byte
@@ -110,13 +109,13 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// <summary>
         /// The Gas Resistance, in ohms, from the last reading..
         /// </summary>
-        public float GasResistance => ((Bme680AtmosphericConditions)Conditions).GasResistance.Value;
+        public float GasResistance => Conditions.GasResistance.Value;
 
         /// <summary>
         /// The Aprox. altitude.
         /// Calculated the last pressure reading and the SeaLevelPressure
         /// </summary>
-        public float Altitude => ((Bme680AtmosphericConditions)Conditions).Altitude.Value;
+        public float Altitude => Conditions.Altitude.Value;
 
 
         /// <summary>
@@ -124,7 +123,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         public byte ChipId { get; protected set; }
 
-        public AtmosphericConditions Conditions { get; protected set; } = new AtmosphericConditions();
+        public AtmosphericPlusGasConditions Conditions { get; protected set; } = new AtmosphericPlusGasConditions();
 
         /// <summary>
         /// Gets a value indicating whether the analog input port is currently
@@ -180,7 +179,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         private object _lock = new object();
         private CancellationTokenSource SamplingTokenSource;
 
-        public event EventHandler<AtmosphericConditionChangeResult> Updated = delegate { };
+        public event EventHandler<AtmosphericConditionPlusGasChangeResult> Updated = delegate { };
 
         protected static float[] lookupK1Range = new float[] { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, -0.8f, 0.0f, 0.0f, -0.2f, -0.5f, 0.0f, -1.0f, 0.0f, 0.0f };
 
@@ -221,16 +220,12 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _configuration.HumidityOverSampling = Oversample.OversampleX2;
             _configuration.GasMode = GasModes.Enabled;
 
-            //set up heater
-            //_bme680.WriteRegister(Bme680Comms.Register.Heat0Register, 0x73);
-            //_bme680.WriteRegister(Bme680Comms.Register.GasWait0Register, 0x65);
-
-            //SetGasHeaterProfile(200, 25);
-            UpdateConfiguration(_configuration);
+            SetGasHeaterProfile(320, 150);
+            
             _ambientTemperature = 25;
         }
 
-        public virtual async Task<Bme680AtmosphericConditions> ReadAsync(
+        public virtual async Task<AtmosphericPlusGasConditions> ReadAsync(
             Oversample temperatureSampleCount = Oversample.OversampleX8,
             Oversample pressureSampleCount = Oversample.OversampleX4,
             Oversample humiditySampleCount = Oversample.OversampleX2,
@@ -238,17 +233,15 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             FilterCoefficient filter = FilterCoefficient.Four)
         {
             // update confiruation for a one-off read
-            //_configuration.TemperatureOverSampling = temperatureSampleCount;
-            //_configuration.PressureOversampling = pressureSampleCount;
-            //_configuration.HumidityOverSampling = humiditySampleCount;
-            //_configuration.GasMode = gasMode;
-            //_configuration.Filter = filter;
+            _configuration.TemperatureOverSampling = temperatureSampleCount;
+            _configuration.PressureOversampling = pressureSampleCount;
+            _configuration.HumidityOverSampling = humiditySampleCount;
+            _configuration.GasMode = gasMode;
+            _configuration.Filter = filter;
 
-            var bme680Conditions = await ReadAsync();
+            Conditions = await ReadAsync();
 
-            Conditions = bme680Conditions;
-
-            return bme680Conditions;
+            return Conditions;
         }
 
         public virtual void StartUpdating(
@@ -268,11 +261,14 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                 // state muh-cheen
                 IsSampling = true;
 
+                ReadAsync(temperatureSampleCount, pressureSampleCount, humiditySampleCount, gasMode, filter).Wait();
+
                 SamplingTokenSource = new CancellationTokenSource();
                 CancellationToken ct = SamplingTokenSource.Token;
 
-                AtmosphericConditions oldConditions;
-                AtmosphericConditionChangeResult result;
+                AtmosphericPlusGasConditions oldConditions;
+                AtmosphericConditionPlusGasChangeResult result;
+
                 Task.Factory.StartNew(async () => {
                     while (true)
                     {
@@ -283,13 +279,13 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                             break;
                         }
                         // capture history
-                        oldConditions = AtmosphericConditions.From(Conditions);
+                        oldConditions = AtmosphericPlusGasConditions.From(Conditions);
 
                         // read
                         await ReadAsync(temperatureSampleCount, pressureSampleCount, humiditySampleCount, gasMode, filter);
 
                         // build a new result with the old and new conditions
-                        result = new AtmosphericConditionChangeResult(oldConditions, Conditions);
+                        result = new AtmosphericConditionPlusGasChangeResult(oldConditions, Conditions);
 
                         // let everyone know
                         RaiseChangedAndNotify(result);
@@ -301,7 +297,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             }
         }
 
-        protected void RaiseChangedAndNotify(AtmosphericConditionChangeResult changeResult)
+        protected void RaiseChangedAndNotify(AtmosphericConditionPlusGasChangeResult changeResult)
         {
             Updated?.Invoke(this, changeResult);
             base.NotifyObservers(changeResult);
@@ -323,13 +319,14 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             }
         }
 
-        protected async Task<Bme680AtmosphericConditions> ReadAsync()
+        protected async Task<AtmosphericPlusGasConditions> ReadAsync()
         {
             return await Task.Run(() =>
             {
 
+                UpdateConfiguration(_configuration);
 
-                Bme680AtmosphericConditions conditions = new Bme680AtmosphericConditions();
+                AtmosphericPlusGasConditions conditions = new AtmosphericPlusGasConditions();
 
                 var ctrl = _bme680.ReadRegister(Bme680Comms.Register.MeasurementRegister);
                 ctrl = (byte)((ctrl & 0xFC) | 0x01);//  # enable single shot!
@@ -393,7 +390,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _bme680.WriteRegister(Bme680Comms.Register.HumidityControlRegister, (byte)configuration.HumidityOverSampling);
 
             //Gas
-            SetGasStatus(configuration.GasMode);
+            SetGasStatus(_configuration.GasMode);
         }
 
         protected void ReadCompensationData()
@@ -537,8 +534,8 @@ namespace Meadow.Foundation.Sensors.Atmospheric
 
         public void SetGasStatus(GasModes mode)
         {
-            _configuration.GasMode = mode;
-            _bme680.WriteRegister(Bme680Comms.Register.GasControlRegister, (byte)((byte)_configuration.GasMode << 4 + (byte)GasHeaterProfile));
+            var data = (byte)(((byte)mode << 4) | (byte)GasHeaterProfile);
+            _bme680.WriteRegister(Bme680Comms.Register.GasControlRegister, data);
         }
 
         public void SelectGasHeaterProfile(GasHeaterProfiles profile)
@@ -653,10 +650,8 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             public GasModes GasMode { get; set; }
         }
 
-        public class Bme680AtmosphericConditions : AtmosphericConditions
-        {
-            public float? GasResistance { get; set; }
-            public float? Altitude { get; set; }
-        }
     }
+
+
+
 }
