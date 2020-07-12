@@ -5,6 +5,7 @@ using System.Threading;
 using Meadow.Peripherals.Sensors.Atmospheric;
 using System.Threading.Tasks;
 using Meadow.Peripherals.Sensors.Temperature;
+using System.Net;
 
 namespace Meadow.Foundation.Sensors.Atmospheric
 {
@@ -650,6 +651,52 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             public GasModes GasMode { get; set; }
         }
 
+        /// <summary>
+        /// Indoor air quality Index Calculation
+        /// </summary>
+        /// <param name="gasBaseline">The Baseline gas Resistence</param>
+        /// <param name="humidityBaseline">humidity baseline,40% is an optimal indoor humidity</param>
+        /// <returns>IAQ Index</returns>
+        /// <remarks>
+        /// 0-50    : good
+        /// 51-100  : average
+        /// 101-150 : little bad
+        /// 151-200 : bad
+        /// 201-300 : worse
+        /// 301-500 : very bad
+        /// Calculation base on https://github.com/pimoroni/bme680-python/blob/master/examples/indoor-air-quality.py
+        /// </remarks>
+        public static float IAQIndex(float gasBaseline, float gasResistence, float humidity, float humidityBaseline = 40.0f)
+        {
+            var humidityWeighting = 0.25f;
+
+            var gasOffset = gasBaseline - gasResistence;
+            var humidityOffset = humidity - humidityBaseline;
+            var humidityScore = 0.0f;
+            var gasScore = 0.0f;
+            if (humidityOffset > 0)
+            {
+                humidityScore = (100 - humidityBaseline - humidityOffset);
+                humidityScore /= 100 - humidityBaseline;
+                humidityScore *= humidityWeighting * 100;
+            }
+            else
+            {
+                humidityScore = humidityBaseline + humidityOffset;
+                humidityScore /= humidityBaseline;
+                humidityScore *= humidityWeighting * 100;
+            }
+
+            if (gasOffset > 0)
+            {
+                gasScore = gasResistence / gasBaseline;
+                gasScore *= (100 - (humidityWeighting * 100));
+            }
+            else
+                gasScore = 100 - (humidityWeighting - 100);
+
+            return humidityScore + gasScore;
+        }
     }
 
 

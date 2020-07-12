@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Meadow;
@@ -17,7 +18,15 @@ namespace Sensors.Atmospheric.Bme680_Sample
         public MeadowApp()
         {
             Initialize();
+
             Run();
+
+            //IAQ example
+            //Task.Factory.StartNew(async () =>
+            //{
+            //    await IndoorAirQuality();
+            //});
+
         }
 
         void Initialize()
@@ -72,12 +81,7 @@ namespace Sensors.Atmospheric.Bme680_Sample
             // just for funsies.
             Console.WriteLine($"ChipID: {bme680.ChipId:X2}");
 
-            //while (true)
-            //{
-                // get an initial reading
-                ReadConditions().Wait();
-            //    Thread.Sleep(1000);
-            //}
+            ReadConditions().Wait();
 
             // start updating continuously
             bme680.StartUpdating();
@@ -96,5 +100,49 @@ namespace Sensors.Atmospheric.Bme680_Sample
             Console.WriteLine($"");
         }
 
+        protected async Task IndoorAirQuality()
+        {
+            Console.WriteLine("Indoor Air Quality:");
+            DateTime burnInEndTime = DateTime.Now.AddMinutes(5);
+            float[] gasData = new float[50];
+            int index=0;
+
+            Console.WriteLine("Collecting gas resistance burn-in data for 5 mins");
+            Console.WriteLine($"StartTime: {DateTime.Now.ToString()} EndTime: {burnInEndTime.ToString()}");
+            while (burnInEndTime > DateTime.Now)
+            {
+                var conditions = await bme680.ReadAsync();
+                Thread.Sleep(10);
+                if (conditions.GasResistance.HasValue)
+                {
+                    gasData[index] = conditions.GasResistance.Value;
+                    index++;
+
+                    if (index >= gasData.Length)
+                    {
+                        Console.WriteLine($"{DateTime.Now.ToString()} gas: { conditions.GasResistance}");
+                        index = 0;
+                    }
+                }
+            }
+
+            Console.WriteLine("burn-in completed");
+            var gasBaseline = gasData.Sum() / 50.0f;
+
+            Console.WriteLine($"gas baseline: { gasBaseline}");
+
+            while (true)
+            {
+                var conditions = await bme680.ReadAsync();
+                
+                if (conditions.GasResistance == null || conditions.Humidity == null)
+                    continue;
+
+                var iaq = Bme680.IAQIndex(gasBaseline, conditions.GasResistance.Value, conditions.Humidity.Value);
+                Console.WriteLine($"IAQ: { iaq:F}, Gas: { conditions.GasResistance} ohms, Humidity: { conditions.Humidity:F}%");
+
+                Thread.Sleep(500);
+            }
+        }
     }
 }
