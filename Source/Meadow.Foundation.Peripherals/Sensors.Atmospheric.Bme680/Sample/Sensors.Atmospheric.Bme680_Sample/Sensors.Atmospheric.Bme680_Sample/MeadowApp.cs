@@ -33,14 +33,12 @@ namespace Sensors.Atmospheric.Bme680_Sample
         {
             Console.WriteLine("Initialize hardware...");
 
-            // configure our BME280 on the I2C Bus
+            // configure our BME680 on the I2C Bus
             var i2c = Device.CreateI2cBus();
             bme680 = new Bme680(
                 i2c,
                 Bme680.I2cAddress.Adddress0x76
             );
-
-            bme680.Initialize();
 
             // TODO: SPI version
 

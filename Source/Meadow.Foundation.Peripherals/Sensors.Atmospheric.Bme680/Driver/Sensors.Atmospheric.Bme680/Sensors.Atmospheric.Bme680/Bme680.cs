@@ -136,7 +136,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public GasHeaterProfiles GasHeaterProfile { get; set; } = GasHeaterProfiles.Zero;
 
         /// <summary>
-        ///     Compensation data.
+        /// Compensation data.
         /// </summary>
         protected struct CompensationData
         {
@@ -189,11 +189,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public Bme680(II2cBus i2CBus, I2cAddress busAddress = I2cAddress.Adddress0x76)
         {
             _bme680 = new Bme680I2C(i2CBus, (byte)busAddress);
+            Initialize();
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="spi">SPI BUS</param>
         /// <param name="chipSelect">SPI Chip select pin</param>
         /// <remarks>
@@ -202,9 +200,10 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public Bme680(ISpiBus spi, IDigitalOutputPort chipSelect)
         {
             _bme680 = new Bme680SPI(spi, chipSelect);
+            Initialize();
         }
 
-        public virtual void Initialize()
+        protected virtual void Initialize()
         {
             _bme680.WriteRegister(_bme680.ResetRegister, 0xB6);
             Thread.Sleep(1);
@@ -305,7 +304,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         }
 
         /// <summary>
-        /// Stops sampling the temperature.
+        /// Stops sampling.
         /// </summary>
         public void StopUpdating()
         {
@@ -433,7 +432,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             _compensationData.SwErr = (sbyte)((_bme680.ReadRegister(0x04) & 0xF0) / 16);
         }
 
-        float CalculateTemperature(uint tempAdc)
+        protected float CalculateTemperature(uint tempAdc)
         {
 
             /* calculate var1 data */
@@ -454,7 +453,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return temp;
         }
 
-        float CalculatePressure(uint presAdc)
+        protected float CalculatePressure(uint presAdc)
         {
             float var1 = _compensationData.Fine / 2.0f - 64000.0f;
             float var2 = var1 * var1 * (_compensationData.P6 / 131072.0f);
@@ -486,7 +485,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return pressure;
         }
 
-        float CalculateHumidity(ushort humAdc)
+        protected float CalculateHumidity(ushort humAdc)
         {
 
             /* compensated temperature data*/
@@ -511,7 +510,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             return humidity;
         }
 
-        float CalculateGasResistance(ushort gasResAdc, byte gasRange)
+        protected float CalculateGasResistance(ushort gasResAdc, byte gasRange)
         {
             float calcGasRes;
 
@@ -551,13 +550,13 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             SetGasHeaterDuration(duration, (byte)GasHeaterProfile);
         }
 
-        void SetGasHeaterTemperature(ushort temperature, byte profileNum)
+        protected void SetGasHeaterTemperature(ushort temperature, byte profileNum)
         {
             var temp = CalculateHeaterResistance(temperature);
             _bme680.WriteRegister(Bme680Comms.Register.Heat0Register + profileNum, temp);
         }
 
-        void SetGasHeaterDuration(ushort duration, byte profileNum)
+        protected void SetGasHeaterDuration(ushort duration, byte profileNum)
         {
             var dur = CalculateHeaterDuration(duration);
             _bme680.WriteRegister(Bme680Comms.Register.GasWait0Register + profileNum, dur);
@@ -568,7 +567,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         /// <param name="temp">Target temperature</param>
         /// <returns></returns>
-        byte CalculateHeaterResistance(ushort temp)
+        protected byte CalculateHeaterResistance(ushort temp)
         {
             float var1 = 0;
             float var2 = 0;
@@ -599,7 +598,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         /// <param name="duration">Target duration in milliseconds, between 1 and 4032</param>
         /// <returns></returns>
-        byte CalculateHeaterDuration(ushort duration)
+        protected byte CalculateHeaterDuration(ushort duration)
         {
             byte factor = 0;
             byte durationVal;
@@ -664,7 +663,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// 151-200 : bad
         /// 201-300 : worse
         /// 301-500 : very bad
-        /// Calculation base on https://github.com/pimoroni/bme680-python/blob/master/examples/indoor-air-quality.py
+        /// Calculation based on https://github.com/pimoroni/bme680-python/blob/master/examples/indoor-air-quality.py
         /// </remarks>
         public static float IAQIndex(float gasBaseline, float gasResistence, float humidity, float humidityBaseline = 40.0f)
         {
