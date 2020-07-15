@@ -24,18 +24,20 @@ namespace Sensors.Light.Veml6075_Sample
             var i2c = Device.CreateI2cBus();
             veml6075 = new VEML6075(i2c);
 
-    //        veml6075.Subscribe(new FilterableObserver<UVConditionChangeResult, UVConditions>(
-    //h => {
-    //    Console.WriteLine($"UVA or UVB changed by threshold; new UVA: {h.New.UVA}, old: {h.Old.UVA}");
-    //},
-    //e => {
-    //    return (
-    //        (Math.Abs(e.Delta.UVA) > 1)
-    //        &&
-    //        (Math.Abs(e.Delta.UVB) > 5)
-    //        );
-    //}
-    //));
+            //veml6075.Subscribe(new FilterableChangeObserver<UVConditionChangeResult, UVConditions>(
+            //h =>
+            //{
+            //    Console.WriteLine($"UVA or UVB changed by threshold; new UVA: {h.New.UVA}, old: {h.Old.UVA}");
+            //},
+            //e =>
+            //{
+            //    return (
+            //        (Math.Abs(e.Delta.UVA) > 1)
+            //        &&
+            //        (Math.Abs(e.Delta.UVB) > 5)
+            //        );
+            //}
+            //));
 
             // classical .NET events can also be used:
             veml6075.Updated += (object sender, UVConditionChangeResult e) => {

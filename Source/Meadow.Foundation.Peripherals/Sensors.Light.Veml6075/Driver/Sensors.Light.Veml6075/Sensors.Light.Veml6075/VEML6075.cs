@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Sensors.Light
     /// <summary>
     /// Represents the VEML6075 UV sensor
     /// </summary>
-    public class VEML6075 : FilterableObservableBase<UVConditionChangeResult, UVConditions>
+    public class VEML6075 : FilterableChangeObservableBase<UVConditionChangeResult, UVConditions>
     {
 
         public enum IntegrationtTme : byte
