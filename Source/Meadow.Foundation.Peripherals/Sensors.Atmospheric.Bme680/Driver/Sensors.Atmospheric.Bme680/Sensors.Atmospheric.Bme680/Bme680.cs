@@ -9,7 +9,7 @@ using System.Net;
 
 namespace Meadow.Foundation.Sensors.Atmospheric
 {
-    public class Bme680 : FilterableObservableBase<AtmosphericConditionPlusGasChangeResult, AtmosphericPlusGasConditions>
+    public class Bme680 : FilterableChangeObservableBase<AtmosphericConditionPlusGasChangeResult, AtmosphericPlusGasConditions>
     {
         /// <summary>
         ///     Valid oversampling values.
