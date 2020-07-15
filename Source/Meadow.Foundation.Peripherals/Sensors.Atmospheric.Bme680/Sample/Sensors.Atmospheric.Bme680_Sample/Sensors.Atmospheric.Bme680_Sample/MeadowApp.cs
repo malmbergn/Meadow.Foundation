@@ -45,7 +45,7 @@ namespace Sensors.Atmospheric.Bme680_Sample
             // Example that uses an IObersvable subscription to only be notified
             // when the temperature changes by at least a degree, and humidty by 5%.
             // (blowing hot breath on the sensor should trigger)
-            //bme680.Subscribe(new FilterableObserver<AtmosphericConditionPlusGasChangeResult, AtmosphericPlusGasConditions>(
+            //bme680.Subscribe(new FilterableChangeObserver<AtmosphericConditionPlusGasChangeResult, AtmosphericPlusGasConditions>(
             //    h =>
             //    {
             //        Console.WriteLine($"Temp or pressure changed by threshold; new temp: {h.New.Temperature}, old: {h.Old.Temperature}");
