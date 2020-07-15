@@ -14,7 +14,7 @@ namespace Meadow.Foundation.Sensors.Light
     /// <remarks>
     /// Default I2C Address is 0x13
     /// </remarks>
-    public class VCNL4010 : FilterableObservableBase<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>
+    public class VCNL4010 : FilterableChangeObservableBase<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>
     {
         /// <summary>
         /// Proximity measurements Frequency inmeasurements/sec

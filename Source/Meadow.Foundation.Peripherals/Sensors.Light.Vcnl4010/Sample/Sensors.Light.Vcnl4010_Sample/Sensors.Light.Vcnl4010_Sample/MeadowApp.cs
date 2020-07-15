@@ -24,7 +24,7 @@ namespace Sensors.Light.Vcnl4010_Sample
             var i2c = Device.CreateI2cBus();
             vcnl4010 = new VCNL4010(i2c);
 
-            vcnl4010.Subscribe(new FilterableObserver<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>(
+            vcnl4010.Subscribe(new FilterableChangeObserver<Vcnl4010ConditionChangeResult, Vcnl4010Conditions>(
             h =>
             {
                 Console.WriteLine($"Threshold changed; new Ambient: {h.New.Ambient}, old: {h.Old.Ambient}, Delta:{h.Delta.Ambient} new Prox: {h.New.Proximity} old: {h.Old.Proximity} Delta:{h.Delta.Proximity}");
