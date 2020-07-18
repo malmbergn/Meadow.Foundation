@@ -3,12 +3,17 @@ using System;
 
 namespace Meadow.Foundation.Leds
 {
+    /// <summary>
+    /// Represents an LED bar graph composed on multiple PWM LEDs
+    /// </summary>
     public class PwmLedBarGraph
     {
+        protected PwmLed[] pwmLeds;
+
         /// <summary>
         /// The number of the LEDs in the bar graph
         /// </summary>
-        public int Count => _pwmLeds.Length;
+        public int Count => pwmLeds.Length;
 
         /// <summary>
         /// A value between 0 and 1 that controls the number of LEDs that are activated
@@ -18,20 +23,16 @@ namespace Meadow.Foundation.Leds
             set => SetPercentage(value);
         }
 
-        protected PwmLed[] _pwmLeds;
-
-        private PwmLedBarGraph() { }
-
         /// <summary>
         /// Create an LedBarGraph instance from an array of IPwnPin and a forwardVoltage for all LEDs in the bar graph
         /// </summary>
         public PwmLedBarGraph(IIODevice device, IPin[] pins, float forwardVoltage)
         {
-            _pwmLeds = new PwmLed[pins.Length];
+            pwmLeds = new PwmLed[pins.Length];
 
             for (int i = 0; i < pins.Length; i++)
             {
-                _pwmLeds[i] = new PwmLed(device, pins[i], forwardVoltage);
+                pwmLeds[i] = new PwmLed(device, pins[i], forwardVoltage);
             }
         }
 
@@ -40,11 +41,11 @@ namespace Meadow.Foundation.Leds
         /// </summary>
         public PwmLedBarGraph(IPwmPort[] ports, float forwardVoltage)
         {
-            _pwmLeds = new PwmLed[ports.Length];
+            pwmLeds = new PwmLed[ports.Length];
 
             for (int i = 0; i < ports.Length; i++)
             {
-                _pwmLeds[i] = new PwmLed(ports[i], forwardVoltage);
+                pwmLeds[i] = new PwmLed(ports[i], forwardVoltage);
             }
         }
 
@@ -55,7 +56,7 @@ namespace Meadow.Foundation.Leds
         /// <param name="isOn"></param>
         public void SetLed(int index, bool isOn)
         {
-            _pwmLeds[index].IsOn = isOn;
+            pwmLeds[index].IsOn = isOn;
         }
 
         /// <summary>
@@ -65,17 +66,19 @@ namespace Meadow.Foundation.Leds
         /// <param name="brightness"></param>
         public void SetLedBrightness(int index, float brightness)
         {
-            _pwmLeds[index].SetBrightness(brightness);
+            pwmLeds[index].SetBrightness(brightness);
         }
 
         /// <summary>
         /// Set the percentage of LEDs that are on starting from index 0
         /// </summary>
-        /// <param name="percentage"></param>
-        void SetPercentage(float percentage) //assume 0 - 1
+        /// <param name="percentage">Percentage (Range from 0 - 1)</param>
+        void SetPercentage(float percentage)
         {
             if (percentage < 0 || percentage > 1)
+            {
                 throw new ArgumentOutOfRangeException();
+            }
 
             float value = percentage * Count;
 
@@ -105,7 +108,7 @@ namespace Meadow.Foundation.Leds
         /// <param name="lowBrightness">Low brightness.</param>
         public void StartBlink(uint onDuration = 200, uint offDuration = 200, float highBrightness = 1, float lowBrightness = 0)
         {
-            foreach (var pwmLed in _pwmLeds)
+            foreach (var pwmLed in pwmLeds)
             {
                 pwmLed.StartBlink(onDuration, offDuration, highBrightness, lowBrightness);
             }
@@ -117,7 +120,7 @@ namespace Meadow.Foundation.Leds
         /// <param name="highBrightness">High brigtness.</param>
         /// <param name="lowBrightness">Low brightness.</param>
         /// </summary>
-        public void StartPulse(int pulseDuration = 1000, float highBrightness = 1, float lowBrightness = 0.25F)
+        public void StartPulse(uint pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F)
         {
             if (highBrightness > 1 || highBrightness <= 0)
             {
@@ -132,7 +135,7 @@ namespace Meadow.Foundation.Leds
                 throw new Exception("lowBrightness must be less than highbrightness");
             }
 
-            foreach (var pwmLed in _pwmLeds)
+            foreach (var pwmLed in pwmLeds)
             {
                 pwmLed.StartPulse(pulseDuration, highBrightness, lowBrightness);
             }
@@ -143,7 +146,7 @@ namespace Meadow.Foundation.Leds
         /// </summary>
         public void Stop()
         {
-            foreach (var pwmLed in _pwmLeds)
+            foreach (var pwmLed in pwmLeds)
             {
                 pwmLed.Stop();
             }

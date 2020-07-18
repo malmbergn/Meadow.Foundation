@@ -1,7 +1,7 @@
-﻿using ICs.IOExpanders;
+﻿using System;
 using Meadow.Foundation.Displays;
+using Meadow.Foundation.ICs.IOExpanders;
 using Meadow.Hardware;
-using System;
 
 namespace Meadow.Foundation.FeatherWings
 {
@@ -27,13 +27,13 @@ namespace Meadow.Foundation.FeatherWings
 
         public byte Brightness { get; set; }
 
-        protected readonly IS31FL3731 iS31FL3731;
+        protected readonly Is31fl3731 iS31FL3731;
 
         public CharlieWing(II2cBus i2cBus, I2cAddress address = I2cAddress.Adddress0x74)
         {
             Brightness = 255;
             pen = Color.White;
-            iS31FL3731 = new IS31FL3731(i2cBus, (byte)address);
+            iS31FL3731 = new Is31fl3731(i2cBus, (byte)address);
             iS31FL3731.Initialize();
 
             for (byte i = 0; i <= 7; i++)
@@ -46,16 +46,6 @@ namespace Meadow.Foundation.FeatherWings
         public override void Clear(bool updateDisplay = false)
         {
             iS31FL3731.Clear(Frame);
-        }
-
-        public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, BitmapMode bitmapMode)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, Color color)
-        {
-            throw new NotImplementedException();
         }
 
         public override void DrawPixel(int x, int y, Color color)

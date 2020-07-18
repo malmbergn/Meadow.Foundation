@@ -12,7 +12,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     /// temperature and humidity sensors
     /// </summary>
     public class Htu21d :
-        FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
+        FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         IAtmosphericSensor, ITemperatureSensor, IHumiditySensor
     {
         #region Events and delegates
@@ -103,11 +103,6 @@ namespace Meadow.Foundation.Sensors.Atmospheric
 
         #region Contstructors
 		
-        /// <summary>
-        ///     Default constructor (private to prevent the user from calling this).
-        /// </summary>
-        private Htu21d() { }
-
         /// <summary>
         ///     Create a new Htu21d temperature and humidity sensor.
         /// </summary>

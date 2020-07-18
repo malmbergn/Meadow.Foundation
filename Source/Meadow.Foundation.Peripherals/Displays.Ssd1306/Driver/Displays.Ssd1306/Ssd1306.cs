@@ -216,11 +216,6 @@ namespace Meadow.Foundation.Displays
         #region Constructors
 
         /// <summary>
-        ///     Default constructor is private to prevent it being used.
-        /// </summary>
-        private Ssd1306() { }
-
-        /// <summary>
         ///     Create a new SSD1306 object using the default parameters for
         /// </summary>
         /// <remarks>
@@ -486,46 +481,6 @@ namespace Meadow.Foundation.Displays
             {
                 buffer[index] = (byte)(buffer[index] & ~(byte)(1 << (y % 8)));
             }
-        }
-
-        /// <summary>
-        ///     Copy a bitmap to the display.
-        /// </summary>
-        /// <remarks>
-        ///     Currently, this method only supports copying the bitmap over the contents
-        ///     of the display buffer.
-        /// </remarks>
-        /// <param name="x">Abscissa of the top left corner of the bitmap.</param>
-        /// <param name="y">Ordinate of the top left corner of the bitmap.</param>
-        /// <param name="width">Width of the bitmap in bytes.</param>
-        /// <param name="height">Height of the bitmap in bytes.</param>
-        /// <param name="bitmap">Bitmap to transfer</param>
-        /// <param name="bitmapMode">How should the bitmap be transferred to the display?</param>
-        public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, BitmapMode bitmapMode)
-        {
-            if ((width * height) != bitmap.Length)
-            {
-                throw new ArgumentException("Width and height do not match the bitmap size.");
-            }
-            for (var ordinate = 0; ordinate < height; ordinate++)
-            {
-                for (var abscissa = 0; abscissa < width; abscissa++)
-                {
-                    var b = bitmap[(ordinate * width) + abscissa];
-                    byte mask = 0x01;
-                    for (var pixel = 0; pixel < 8; pixel++)
-                    {
-                        DrawPixel(x + (8 * abscissa) + pixel, y + ordinate, (b & mask) > 0);
-                        mask <<= 1;
-                    }
-                }
-            }
-        }
-
-        //needs dithering code
-        public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, Color color)
-        {
-            DrawBitmap(x, y, width, height, bitmap, BitmapMode.And);
         }
 
         /// <summary>

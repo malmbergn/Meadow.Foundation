@@ -416,12 +416,16 @@ namespace Meadow.Foundation.ICs.IOExpanders
             throw new NotImplementedException();
         }
 
+        //TODO: we know adding all these sucks. when we convert to .NET Core
+        // we'll be able to add these to the IIODevice interface implementation
+        // and they won't be necessary to put in like this.
+
         public IAnalogInputPort CreateAnalogInputPort(IPin pin, float voltageReference = 3.3F)
         {
             throw new NotImplementedException();
         }
 
-        public ISerialPort CreateSerialPort(SerialPortName portName, int baudRate, int dataBits = 8, Parity parity = Parity.None, StopBits stopBits = StopBits.One, int readBufferSize = 4096)
+        public ISerialPort CreateSerialPort(SerialPortName portName, int baudRate = 9600, int dataBits = 8, Parity parity = Parity.None, StopBits stopBits = StopBits.One, int readBufferSize = 1024)
         {
             throw new NotImplementedException();
         }
@@ -467,6 +471,16 @@ namespace Meadow.Foundation.ICs.IOExpanders
         }
 
         public void SetClock(DateTime dateTime)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ISerialMessagePort CreateSerialMessagePort(SerialPortName portName, byte[] suffixDelimiter, bool preserveDelimiter, int baudRate = 9600, int dataBits = 8, Parity parity = Parity.None, StopBits stopBits = StopBits.One, int readBufferSize = 512)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ISerialMessagePort CreateSerialMessagePort(SerialPortName portName, byte[] prefixDelimiter, bool preserveDelimiter, int messageLength, int baudRate = 9600, int dataBits = 8, Parity parity = Parity.None, StopBits stopBits = StopBits.One, int readBufferSize = 512)
         {
             throw new NotImplementedException();
         }

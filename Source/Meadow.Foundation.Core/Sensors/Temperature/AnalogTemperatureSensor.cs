@@ -30,7 +30,7 @@ namespace Meadow.Foundation.Sensors.Temperature
     /// TMP37                   500                     20
     /// </remarks>
     public class AnalogTemperature
-        : FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
+        : FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         ITemperatureSensor
     {
         /// <summary>
@@ -120,12 +120,12 @@ namespace Meadow.Foundation.Sensors.Temperature
         /// <remarks>
         ///     This will be the gradient of the line y = mx + c.
         /// </remarks>
-        private readonly int _millivoltsPerDegreeCentigrade;
+        private readonly int millivoltsPerDegreeCentigrade;
 
         /// <summary>
         ///     Point where the line y = mx +c would intercept the y-axis.
         /// </summary>
-        private readonly float _yIntercept;
+        private readonly float yIntercept;
 
         #endregion Member variables / fields
 
@@ -186,26 +186,25 @@ namespace Meadow.Foundation.Sensors.Temperature
             //
             if (calibration == null) { calibration = new Calibration(); }
 
-            switch (sensorType)
-            {
+            switch (sensorType) {
                 case KnownSensorType.TMP35:
                 case KnownSensorType.LM35:
                 case KnownSensorType.LM45:
-                    _yIntercept = 0;
-                    _millivoltsPerDegreeCentigrade = 10;
+                    yIntercept = 0;
+                    millivoltsPerDegreeCentigrade = 10;
                     break;
                 case KnownSensorType.LM50:
                 case KnownSensorType.TMP36:
-                    _yIntercept = 500;
-                    _millivoltsPerDegreeCentigrade = 10;
+                    yIntercept = 500;
+                    millivoltsPerDegreeCentigrade = 10;
                     break;
                 case KnownSensorType.TMP37:
-                    _yIntercept = 0;
-                    _millivoltsPerDegreeCentigrade = 20;
+                    yIntercept = 0;
+                    millivoltsPerDegreeCentigrade = 20;
                     break;
                 case KnownSensorType.Custom:
-                    _yIntercept = calibration.MillivoltsAtSampleReading - (calibration.SampleReading * calibration.MillivoltsPerDegreeCentigrade);
-                    _millivoltsPerDegreeCentigrade = calibration.MillivoltsPerDegreeCentigrade;
+                    yIntercept = calibration.MillivoltsAtSampleReading - (calibration.SampleReading * calibration.MillivoltsPerDegreeCentigrade);
+                    millivoltsPerDegreeCentigrade = calibration.MillivoltsPerDegreeCentigrade;
                     break;
                 default:
                     throw new ArgumentException("Unknown sensor type", nameof(sensorType));
@@ -217,7 +216,7 @@ namespace Meadow.Foundation.Sensors.Temperature
             // pattern through the sensor driver
             AnalogInputPort.Subscribe
             (
-                new FilterableObserver<FloatChangeResult, float>(
+                new FilterableChangeObserver<FloatChangeResult, float>(
                     h => {
                         var newTemp = VoltageToTemperature(h.New);
                         var oldTemp = VoltageToTemperature(h.Old);
@@ -283,7 +282,8 @@ namespace Meadow.Foundation.Sensors.Temperature
         /// <summary>
         /// Stops sampling the temperature.
         /// </summary>
-        public void StopUpdating() {
+        public void StopUpdating()
+        {
             AnalogInputPort.StopSampling();
         }
 
@@ -302,7 +302,7 @@ namespace Meadow.Foundation.Sensors.Temperature
         protected float VoltageToTemperature(float voltage)
         {
             var yAdjusted = voltage * 1000;
-            return (yAdjusted - _yIntercept) / _millivoltsPerDegreeCentigrade;
+            return (yAdjusted - yIntercept) / millivoltsPerDegreeCentigrade;
         }
 
         #endregion Methods

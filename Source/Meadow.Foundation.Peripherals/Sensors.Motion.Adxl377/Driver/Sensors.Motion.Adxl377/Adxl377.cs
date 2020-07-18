@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Sensors.Motion
     ///     Driver for the ADXL377 triple axis accelerometer.
     ///     +/- 200g
     /// </summary>
-    public class Adxl377 : FilterableObservableBase<AccelerationConditionChangeResult, AccelerationConditions>,
+    public class Adxl377 : FilterableChangeObservableBase<AccelerationConditionChangeResult, AccelerationConditions>,
         IAccelerometer
     {
         #region Constants
@@ -122,13 +122,6 @@ namespace Meadow.Foundation.Sensors.Motion
         #region Constructors
 
         /// <summary>
-        ///     Make the default constructor private so that the developer cannot access it.
-        /// </summary>
-        private Adxl377()
-        {
-        }
-
-        /// <summary>
         ///     Create a new ADXL337 sensor object.
         /// </summary>
         /// <param name="xPin">Analog pin connected to the X axis output from the ADXL335 sensor.</param>
@@ -146,7 +139,7 @@ namespace Meadow.Foundation.Sensors.Motion
             YVoltsPerG = 0.00825f;
             ZVoltsPerG = 0.00825f;
             SupplyVoltage = 3.3f;
-		}
+        }
 
         #endregion Constructors
 
@@ -172,8 +165,7 @@ namespace Meadow.Foundation.Sensors.Motion
         public void StartUpdating(int standbyDuration = 1000)
         {
             // thread safety
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (IsSampling) { return; }
 
                 // state muh-cheen
@@ -185,10 +177,8 @@ namespace Meadow.Foundation.Sensors.Motion
                 AccelerationConditions oldConditions;
                 AccelerationConditionChangeResult result;
                 Task.Factory.StartNew(async () => {
-                    while (true)
-                    {
-                        if (ct.IsCancellationRequested)
-                        {
+                    while (true) {
+                        if (ct.IsCancellationRequested) {
                             // do task clean up here
                             _observers.ForEach(x => x.OnCompleted());
                             break;
@@ -223,8 +213,7 @@ namespace Meadow.Foundation.Sensors.Motion
         ///// </summary>
         public void StopUpdating()
         {
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (!IsSampling) { return; }
 
                 SamplingTokenSource?.Cancel();

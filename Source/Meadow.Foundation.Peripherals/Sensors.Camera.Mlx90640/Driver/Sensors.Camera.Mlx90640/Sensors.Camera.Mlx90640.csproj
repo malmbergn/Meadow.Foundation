@@ -1,0 +1,13 @@
+<Project Sdk="Meadow.Sdk/1.1.0">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Mlx90640</AssemblyName>
+    <RootNamespace>Meadow.Foundation.Sensors.Temperature</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Meadow.Foundation" Version="0.17.0" />
+  </ItemGroup>
+</Project>

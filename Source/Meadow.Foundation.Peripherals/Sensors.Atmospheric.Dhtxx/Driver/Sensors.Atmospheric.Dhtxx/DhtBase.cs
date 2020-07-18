@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     /// Provide a mechanism for reading the Temperature and Humidity from
     /// a HIH6130 temperature and Humidity sensor.
     /// </summary>
-    public abstract class DhtBase : FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
+    public abstract class DhtBase : FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         IAtmosphericSensor, ITemperatureSensor, IHumiditySensor
     {
         #region Member variables / fields
@@ -90,11 +90,6 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         #region Contructors
 
         /// <summary>
-        ///     Default constructor is private to prevent the developer from calling it.
-        /// </summary>
-        private DhtBase() { }
-
-        /// <summary>
         /// Create a DHT sensor through I2C (Only DHT12)
         /// </summary>
         /// <param name="i2cDevice">The I2C device used for communication.</param>
@@ -117,17 +112,13 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         internal virtual void ReadData()
         {
             // Dht device reads should be at least 1s apart, use the previous measurement if less than 1000ms
-            if (Environment.TickCount - _lastMeasurement < 1000)
-            {
-                return; 
+            if (Environment.TickCount - _lastMeasurement < 1000) {
+                return;
             }
 
-            if (_protocol == BusType.OneWire)
-            {
+            if (_protocol == BusType.OneWire) {
                 ReadDataOneWire();
-            }
-            else
-            {
+            } else {
                 ReadDataI2c();
             }
         }
@@ -137,7 +128,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         internal virtual void ReadDataOneWire()
         {
-            throw new NotImplementedException("ReadDataOneWire()"); 
+            throw new NotImplementedException("ReadDataOneWire()");
         }
 
         /// <summary>
@@ -150,12 +141,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
 
             _lastMeasurement = Environment.TickCount;
 
-            if ((_readBuffer[4] == ((_readBuffer[0] + _readBuffer[1] + _readBuffer[2] + _readBuffer[3]) & 0xFF)))
-            {
+            if ((_readBuffer[4] == ((_readBuffer[0] + _readBuffer[1] + _readBuffer[2] + _readBuffer[3]) & 0xFF))) {
                 WasLastReadSuccessful = (_readBuffer[0] != 0) || (_readBuffer[2] != 0);
-            }
-            else
-            {
+            } else {
                 WasLastReadSuccessful = false;
             }
         }
@@ -188,8 +176,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public void StartUpdating(int standbyDuration = 1000)
         {
             // thread safety
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (IsSampling) return;
 
                 IsSampling = true;
@@ -201,11 +188,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                 AtmosphericConditionChangeResult result;
 
                 Task.Factory.StartNew(async () => {
-                    while (true)
-                    {
+                    while (true) {
                         // cleanup
-                        if (ct.IsCancellationRequested)
-                        {
+                        if (ct.IsCancellationRequested) {
                             // do task clean up here
                             _observers.ForEach(x => x.OnCompleted());
                             break;
@@ -240,8 +225,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         public void StopUpdating()
         {
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (!IsSampling) return;
 
                 SamplingTokenSource?.Cancel();
@@ -256,15 +240,12 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         public Task Update()
         {
-            if (_protocol == BusType.I2C)
-            {
+            if (_protocol == BusType.I2C) {
                 ReadDataI2c();
-            }
-            else
-            { 
+            } else {
                 ReadDataOneWire();
             }
-            
+
             Conditions.Humidity = GetHumidity(_readBuffer);
             Conditions.Temperature = GetTemperature(_readBuffer);
 

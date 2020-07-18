@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     /// Grove TH02 temperature and humidity sensor.
     /// </summary>
     public class GroveTh02 :
-        FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
+        FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         IAtmosphericSensor, ITemperatureSensor, IHumiditySensor
     {
         #region Constants
@@ -54,22 +54,22 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             ///     Status register.
             /// </summary>
             public const byte Status = 0x00;
-            
+
             /// <summary>
             ///     High byte of the data register.
             /// </summary>
             public const byte DataHigh = 0x01;
-            
+
             /// <summary>
             ///     Low byte of the data register.
             /// </summary>
             public const byte DataLow = 0x02;
-            
+
             /// <summary>
             ///     Addess of the configuration register.
             /// </summary>
             public const byte Config = 0x04;
-            
+
             /// <summary>
             ///     Address of the ID register.
             /// </summary>
@@ -107,21 +107,15 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// <summary>
         ///     Get / set the heater status.
         /// </summary>
-        public bool HeaterOn
-        {
-            get
-            {
+        public bool HeaterOn {
+            get {
                 return ((groveTH02.ReadRegister(Registers.Config) & HeaterOnBit) > 0);
             }
-            set
-            {
+            set {
                 byte config = groveTH02.ReadRegister(Registers.Config);
-                if (value)
-                {
-                    config |= HeaterOnBit;                    
-                }
-                else
-                {
+                if (value) {
+                    config |= HeaterOnBit;
+                } else {
                     config &= HeaterMask;
                 }
                 groveTH02.WriteRegister(Registers.Config, config);
@@ -155,13 +149,6 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         #region Constructors
 
         /// <summary>
-        ///     Default constructor is private to prevent the developer from calling it.
-        /// </summary>
-        private GroveTh02()
-        {
-        }
-
-        /// <summary>
         ///     Create a new GroveTH02 object using the default parameters for the component.
         /// </summary>
         /// <param name="address">Address of the Grove TH02 (default = 0x4-).</param>
@@ -189,8 +176,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public void StartUpdating(int standbyDuration = 1000)
         {
             // thread safety
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (IsSampling) return;
 
                 // state muh-cheen
@@ -202,10 +188,8 @@ namespace Meadow.Foundation.Sensors.Atmospheric
                 AtmosphericConditions oldConditions;
                 AtmosphericConditionChangeResult result;
                 Task.Factory.StartNew(async () => {
-                    while (true)
-                    {
-                        if (ct.IsCancellationRequested)
-                        {
+                    while (true) {
+                        if (ct.IsCancellationRequested) {
                             // do task clean up here
                             _observers.ForEach(x => x.OnCompleted());
                             break;
@@ -240,8 +224,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// </summary>
         public void StopUpdating()
         {
-            lock (_lock)
-            {
+            lock (_lock) {
                 if (!IsSampling) return;
 
                 SamplingTokenSource?.Cancel();
@@ -273,7 +256,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             temp = data[0] << 8;
             temp |= data[1];
             temp >>= 4;
-            Conditions.Humidity = (((float) temp) / 16) - 24;
+            Conditions.Humidity = (((float)temp) / 16) - 24;
             //
             //  Now get the temperature.
             //
@@ -289,7 +272,7 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             temp = data[0] << 8;
             temp |= data[1];
             temp >>= 2;
-            Conditions.Temperature = (((float) temp) / 32) - 50;
+            Conditions.Temperature = (((float)temp) / 32) - 50;
         }
 
         #endregion

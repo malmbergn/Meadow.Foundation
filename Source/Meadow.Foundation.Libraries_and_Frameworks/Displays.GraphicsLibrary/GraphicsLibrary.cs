@@ -11,7 +11,7 @@ namespace Meadow.Foundation.Graphics
     {
         #region Member variables / fields
 
-        private readonly DisplayBase _display;
+        private readonly DisplayBase display;
 
         #endregion Member variables / fields
 
@@ -69,12 +69,12 @@ namespace Meadow.Foundation.Graphics
         /// <summary>
         /// Return the height of the display after accounting for the rotation.
         /// </summary>
-        public uint Height =>  Rotation == RotationType.Default || Rotation == RotationType._180Degrees ? _display.Height : _display.Width;
+        public uint Height =>  Rotation == RotationType.Default || Rotation == RotationType._180Degrees ? display.Height : display.Width;
 
         /// <summary>
         /// Return the width of the display after accounting for the rotation.
         /// </summary>
-        public uint Width => Rotation == RotationType.Default || Rotation == RotationType._180Degrees ? _display.Width : _display.Height;
+        public uint Width => Rotation == RotationType.Default || Rotation == RotationType._180Degrees ? display.Width : display.Height;
 
         public TextDisplayConfig DisplayConfig { get; private set; }
 
@@ -85,7 +85,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="display"></param>
         public GraphicsLibrary(DisplayBase display)
         {
-            _display = display;
+            this.display = display;
             CurrentFont = null;
         }
 
@@ -104,7 +104,7 @@ namespace Meadow.Foundation.Graphics
             {
                 return;
             }
-            _display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y));
+            display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y));
         }
 
         /// <summary>
@@ -119,7 +119,7 @@ namespace Meadow.Foundation.Graphics
             {
                 return;
             }
-            _display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y), colored);
+            display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y), colored);
         }
 
         /// <summary>
@@ -134,7 +134,7 @@ namespace Meadow.Foundation.Graphics
             {
                 return;
             }
-            _display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y), color);
+            display.DrawPixel(GetXForRotation(x, y), GetYForRotation(x, y), color);
         }
 
         private bool IsPixelInBounds(int x, int y)
@@ -181,7 +181,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="color">The color of the line.</param>
         public void DrawLine(int x0, int y0, int x1, int y1, Color color)
         {
-            _display.SetPenColor(color);
+            display.SetPenColor(color);
 
             if(Stroke == 1)
             {
@@ -296,7 +296,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="color">The color of the line.</param>
         public void DrawHorizontalLine(int x0, int y0, int length, Color color)
         {
-            _display.SetPenColor(color);
+            display.SetPenColor(color);
             DrawHorizontalLine(x0, y0, length);
 
         }
@@ -344,7 +344,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="color">The color of the line.</param>
         public void DrawVerticalLine(int x0, int y0, int length, Color color)
         {
-            _display.SetPenColor(color);
+            display.SetPenColor(color);
 
             DrawVerticalLine(x0, y0, length);
         }
@@ -453,10 +453,10 @@ namespace Meadow.Foundation.Graphics
             if (y0 == y2)
             { // Handle awkward all-on-same-line case as its own thing
                 int x = x0, len = x0;
-                if (x1 < x) x = x1;
-                else if (x1 > len) len = x1;
-                if (x2 < x) x = x2;
-                else if (x2 > len) len = x2;
+                if (x1 < x) { x = x1; }
+                else if (x1 > len) { len = x1; }
+                if (x2 < x) { x = x2; }
+                else if (x2 > len) { len = x2; }
                 DrawHorizontalLine(x, y0, len - x + 1, color);
                 return;
             }
@@ -541,7 +541,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="filled">Draw a filled circle?</param>
         public void DrawCircle(int centerX, int centerY, int radius, Color color, bool filled = false, bool centerBetweenPixels = false)
         {
-            _display.SetPenColor(color);
+            display.SetPenColor(color);
 
             if (filled)
             {
@@ -697,7 +697,7 @@ namespace Meadow.Foundation.Graphics
 
             byte[] bitMap = GetBytesForTextBitmap(text);
 
-            DrawBitmap(x, y, bitMap.Length / CurrentFont.Height, CurrentFont.Height, bitMap, DisplayBase.BitmapMode.And, scaleFactor);
+            DrawBitmap(x, y, bitMap.Length / CurrentFont.Height * 8, CurrentFont.Height, bitMap, DisplayBase.BitmapMode.And, scaleFactor);
         }
 
         /// <summary>
@@ -714,18 +714,18 @@ namespace Meadow.Foundation.Graphics
                 throw new Exception("CurrentFont must be set before calling DrawText.");
             }
 
-            byte[] bitMap = GetBytesForTextBitmap(text);
+            byte[] bitmap = GetBytesForTextBitmap(text);
             
-            DrawBitmap(x, y, bitMap.Length / CurrentFont.Height, CurrentFont.Height, bitMap, color, scaleFactor);
+            DrawBitmap(x, y, bitmap.Length / CurrentFont.Height * 8, CurrentFont.Height, bitmap, color, scaleFactor);
         }
 
         private byte[] GetBytesForTextBitmap(string text)
         {
-            byte[] bitMap;
+            byte[] bitmap;
 
             if (CurrentFont.Width == 8) //just copy bytes
             {
-                bitMap = new byte[text.Length * CurrentFont.Height * CurrentFont.Width / 8];
+                bitmap = new byte[text.Length * CurrentFont.Height * CurrentFont.Width / 8];
 
                 byte[] characterMap;
 
@@ -736,14 +736,14 @@ namespace Meadow.Foundation.Graphics
                     //copy data for 1 character at a time going top to bottom
                     for (int segment = 0; segment < CurrentFont.Height; segment++)
                     {
-                        bitMap[i + (segment * text.Length)] = characterMap[segment];
+                        bitmap[i + (segment * text.Length)] = characterMap[segment];
                     }
                 }
             }
             else if (CurrentFont.Width == 12)
             {
                 var len = (text.Length + text.Length % 2) * 3 / 2;
-                bitMap = new byte[len * CurrentFont.Height];
+                bitmap = new byte[len * CurrentFont.Height];
 
                 byte[] charMap1, charMap2;
                 int index = 0;
@@ -758,14 +758,14 @@ namespace Meadow.Foundation.Graphics
                     for (int j = 0; j < CurrentFont.Height; j += 2)
                     {
                         //first row - spans 3 bytes (for 2 chars)
-                        bitMap[index + (j + 0) * len + 0] = charMap1[cIndex]; //good
-                        bitMap[index + (j + 0) * len + 1] = (byte)((charMap1[cIndex + 1] & 0x0F) | (charMap2[cIndex] << 4)); //bad?
-                        bitMap[index + (j + 0) * len + 2] = (byte)((charMap2[cIndex] >> 4) | (charMap2[cIndex + 1] << 4)); //good
+                        bitmap[index + (j + 0) * len + 0] = charMap1[cIndex]; //good
+                        bitmap[index + (j + 0) * len + 1] = (byte)((charMap1[cIndex + 1] & 0x0F) | (charMap2[cIndex] << 4)); //bad?
+                        bitmap[index + (j + 0) * len + 2] = (byte)((charMap2[cIndex] >> 4) | (charMap2[cIndex + 1] << 4)); //good
 
                         //2nd row
-                        bitMap[index + (j + 1) * len + 0] = (byte)((charMap1[cIndex + 1] >> 4) | charMap1[cIndex + 2] << 4); //good
-                        bitMap[index + (j + 1) * len + 1] = (byte)((charMap1[cIndex + 2] >> 4) | charMap2[cIndex + 1] & 0xF0); //bad?
-                        bitMap[index + (j + 1) * len + 2] = (byte)((charMap2[cIndex + 2])); //good
+                        bitmap[index + (j + 1) * len + 0] = (byte)((charMap1[cIndex + 1] >> 4) | charMap1[cIndex + 2] << 4); //good
+                        bitmap[index + (j + 1) * len + 1] = (byte)((charMap1[cIndex + 2] >> 4) | charMap2[cIndex + 1] & 0xF0); //bad?
+                        bitmap[index + (j + 1) * len + 2] = (byte)((charMap2[cIndex + 2])); //good
 
                         cIndex += 3;
                     }
@@ -775,7 +775,7 @@ namespace Meadow.Foundation.Graphics
             else if (CurrentFont.Width == 4)
             {
                 var len = (text.Length + text.Length % 2) / 2;
-                bitMap = new byte[len * CurrentFont.Height];
+                bitmap = new byte[len * CurrentFont.Height];
                 byte[] charMap1, charMap2;
 
                 for (int i = 0; i < len; i++)
@@ -786,8 +786,8 @@ namespace Meadow.Foundation.Graphics
 
                     for (int j = 0; j < charMap1.Length; j++)
                     {
-                        bitMap[i + (j * 2 + 0) * len] = (byte)((charMap1[j] & 0x0F) | (charMap2[j] << 4));
-                        bitMap[i + (j * 2 + 1) * len] = (byte)((charMap1[j] >> 4) | (charMap2[j] & 0xF0));
+                        bitmap[i + (j * 2 + 0) * len] = (byte)((charMap1[j] & 0x0F) | (charMap2[j] << 4));
+                        bitmap[i + (j * 2 + 1) * len] = (byte)((charMap1[j] >> 4) | (charMap2[j] & 0xF0));
                     }
                 }
             }
@@ -795,7 +795,7 @@ namespace Meadow.Foundation.Graphics
             {
                 throw new Exception("Font width must be 4, 6, 8, or 12");
             }
-            return bitMap;
+            return bitmap;
         }
 
         byte SetBit(byte value, int position, bool high)
@@ -813,7 +813,7 @@ namespace Meadow.Foundation.Graphics
         /// </summary>
         public void Show()
         {
-            _display.Show();
+            display.Show();
         }
 
         /// <summary>
@@ -822,7 +822,7 @@ namespace Meadow.Foundation.Graphics
         /// <param name="updateDisplay">Update the display immediately when true.</param>
         public void Clear(bool updateDisplay = false)
         {
-            _display.Clear(updateDisplay);
+            display.Clear(updateDisplay);
         }
 
         /// <summary>
@@ -832,12 +832,14 @@ namespace Meadow.Foundation.Graphics
         /// </summary>
         /// <param name="x">Abscissa of the top left corner of the bitmap.</param>
         /// <param name="y">Ordinate of the top left corner of the bitmap.</param>
-        /// <param name="width">Width of the bitmap in bytes.</param>
-        /// <param name="height">Height of the bitmap in bytes.</param>
+        /// <param name="width">Width of the bitmap in pixels.</param>
+        /// <param name="height">Height of the bitmap in pixels.</param>
         /// <param name="bitmap">Bitmap to display.</param>
         /// <param name="bitmapMode">How should the bitmap be transferred to the display?</param>
         public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, DisplayBase.BitmapMode bitmapMode, ScaleFactor scaleFactor = ScaleFactor.X1)
         {
+            width /= 8;
+
             if ((width * height) != bitmap.Length)
             {
                 throw new ArgumentException("Width and height do not match the bitmap size.");
@@ -894,13 +896,13 @@ namespace Meadow.Foundation.Graphics
         /// </summary>
         /// <param name="x">Abscissa of the top left corner of the bitmap.</param>
         /// <param name="y">Ordinate of the top left corner of the bitmap.</param>
-        /// <param name="width">Width of the bitmap in bytes.</param>
-        /// <param name="height">Height of the bitmap in bytes.</param>
+        /// <param name="width">Width of the bitmap in pixels.</param>
+        /// <param name="height">Height of the bitmap in pixels.</param>
         /// <param name="bitmap">Bitmap to display.</param>
         /// <param name="color">The color of the bitmap.</param>
         public void DrawBitmap(int x, int y, int width, int height, byte[] bitmap, Color color, ScaleFactor scaleFactor = ScaleFactor.X1)
         {
-            _display.SetPenColor(color);
+            display.SetPenColor(color);
 
             DrawBitmap(x, y, width, height, bitmap, DisplayBase.BitmapMode.Copy, scaleFactor);
         }
@@ -910,9 +912,9 @@ namespace Meadow.Foundation.Graphics
             switch(Rotation)
             {
                 case RotationType._90Degrees:
-                    return (int)_display.Width - y - 1;
+                    return (int)display.Width - y - 1;
                 case RotationType._180Degrees:
-                    return (int)_display.Width - x - 1;
+                    return (int)display.Width - x - 1;
                 case RotationType._270Degrees:
                     return (int)y;
                 case RotationType.Default:
@@ -928,9 +930,9 @@ namespace Meadow.Foundation.Graphics
                 case RotationType._90Degrees:
                     return x; 
                 case RotationType._180Degrees:
-                    return (int)_display.Height - y - 1;
+                    return (int)display.Height - y - 1;
                 case RotationType._270Degrees:
-                    return (int)_display.Height - x - 1;
+                    return (int)display.Height - x - 1;
                 case RotationType.Default:
                 default:
                     return y;

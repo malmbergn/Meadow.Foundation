@@ -1,15 +1,18 @@
 using Meadow.Hardware;
 using Meadow.Peripherals.Leds;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Meadow.Foundation.Leds
 {
-	/// <summary>
-	/// Represents a simple LED
-	/// </summary>
-	public class Led : ILed
+    /// <summary>
+    /// Represents a simple LED
+    /// </summary>
+    public class Led : ILed
 	{
-		#region Properties
+		protected Task animationTask;
+		protected CancellationTokenSource cancellationTokenSource;
+
 		/// <summary>
 		/// Gets the port that is driving the LED
 		/// </summary>
@@ -22,22 +25,15 @@ namespace Meadow.Foundation.Leds
 		/// <value><c>true</c> if is on; otherwise, <c>false</c>.</value>
 		public bool IsOn
 		{
-			get { return _isOn; }
+			get { return isOn; }
 			set
 			{
-				_isOn = value;
-				Port.State = _isOn;
+				isOn = value;
+				Port.State = isOn;
 			}
 		}
-		#endregion
+		protected bool isOn;
 
-		#region Fields
-		protected bool _isOn = false;
-		protected Task _animationTask = null;
-		protected bool _running = false;
-		#endregion
-
-		#region Constructor(s)
 		/// <summary>
 		/// Creates a LED through a pin directly from the Digital IO of the board
 		/// </summary>
@@ -54,9 +50,16 @@ namespace Meadow.Foundation.Leds
 		{
 			Port = port;
 		}
-		#endregion
 
-		#region Public Methods
+		/// <summary>
+		/// Stops the LED when its blinking and/or turns it off.
+		/// </summary>
+		public void Stop()
+		{
+			cancellationTokenSource?.Cancel();
+			IsOn = false;
+		}
+
 		/// <summary>
 		/// Blink animation that turns the LED on and off based on the OnDuration and offDuration values in ms
 		/// </summary>
@@ -64,30 +67,30 @@ namespace Meadow.Foundation.Leds
 		/// <param name="offDuration"></param>
 		public void StartBlink(uint onDuration = 200, uint offDuration = 200)
 		{
-			_running = true;
+			Stop();
 
-            //TODO: Make this cancellable via Cancellation token
-            _animationTask = new Task(async () => 
-            {
-                while (_running)
-                {
-                    IsOn = true;
-                    await Task.Delay((int)onDuration);
-                    IsOn = false;
-                    await Task.Delay((int)offDuration);
-                }
-            });
-            _animationTask.Start();
-        }
-
-		/// <summary>
-		/// Stops the LED when its blinking and/or turns it off.
-		/// </summary>
-		public void Stop()
-		{
-			_running = false;
-			_isOn = false;
+			animationTask = new Task(async () =>
+			{
+				cancellationTokenSource = new CancellationTokenSource();
+				await StartBlinkAsync(onDuration, offDuration, cancellationTokenSource.Token);
+			});
+			animationTask.Start();
 		}
-		#endregion
+		
+		protected async Task StartBlinkAsync(uint onDuration, uint offDuration, CancellationToken cancellationToken)
+		{
+			while (true)
+			{
+				if (cancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				IsOn = true;
+				await Task.Delay((int)onDuration);
+				IsOn = false;
+				await Task.Delay((int)offDuration);
+			}
+		}
 	}
 }

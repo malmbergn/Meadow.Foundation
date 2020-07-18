@@ -9,7 +9,7 @@ namespace Meadow.Foundation.Sensors.Moisture
     /// <summary>
     /// Capacitive Soil Moisture Sensor
     /// </summary>
-    public class Capacitive : FilterableObservableBase<FloatChangeResult, float>, IMoistureSensor
+    public class Capacitive : FilterableChangeObservableBase<FloatChangeResult, float>, IMoistureSensor
     {
         /// <summary>
         /// Raised when a new sensor reading has been made. To enable, call StartUpdating().
@@ -19,7 +19,7 @@ namespace Meadow.Foundation.Sensors.Moisture
         #region Member Variables / fields
 
         // internal thread lock
-        private object _lock = new object();        
+        private object _lock = new object();
 
         #endregion
 
@@ -57,11 +57,6 @@ namespace Meadow.Foundation.Sensors.Moisture
         #region Constructors
 
         /// <summary>
-        /// Default constructor is private to prevent it being called.
-        /// </summary>
-        private Capacitive() { }
-
-        /// <summary>
         /// Creates a Capacitive soil moisture sensor object with the specified analog pin and a IO device.
         /// </summary>
         /// <param name="device"></param>
@@ -70,8 +65,9 @@ namespace Meadow.Foundation.Sensors.Moisture
             IIODevice device,
             IPin analogPin,
             float minimumVoltageCalibration = 0f,
-            float maximumVoltageCalibration = 3.3f) : 
-            this(device.CreateAnalogInputPort(analogPin), minimumVoltageCalibration, maximumVoltageCalibration) { }
+            float maximumVoltageCalibration = 3.3f) :
+            this(device.CreateAnalogInputPort(analogPin), minimumVoltageCalibration, maximumVoltageCalibration)
+        { }
 
         /// <summary>
         /// Creates a Capacitive soil moisture sensor object with the especified AnalogInputPort.
@@ -91,7 +87,7 @@ namespace Meadow.Foundation.Sensors.Moisture
             // this is where the magic is: this allows us to extend the IObservable
             // pattern through the sensor driver
             AnalogInputPort.Subscribe(
-                new FilterableObserver<FloatChangeResult, float>(
+                new FilterableChangeObserver<FloatChangeResult, float>(
                     h => {
                         var newMoisture = VoltageToMoisture(h.New);
                         var oldMoisture = VoltageToMoisture(h.Old);
@@ -162,10 +158,9 @@ namespace Meadow.Foundation.Sensors.Moisture
             base.NotifyObservers(changeResult);
         }
 
-        protected float VoltageToMoisture(float voltage) 
+        protected float VoltageToMoisture(float voltage)
         {
-            if (MinimumVoltageCalibration > MaximumVoltageCalibration)
-            {
+            if (MinimumVoltageCalibration > MaximumVoltageCalibration) {
                 return 1f - Map(voltage, MaximumVoltageCalibration, MinimumVoltageCalibration, 0f, 1.0f);
             }
 
