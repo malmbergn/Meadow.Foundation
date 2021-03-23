@@ -14,16 +14,10 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     public class Hih6130 : FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         IAtmosphericSensor, ITemperatureSensor, IHumiditySensor
     {
-        #region Member variables / fields
-
         /// <summary>
         ///     HIH6130 sensor object.
         /// </summary>
         private readonly II2cPeripheral hih6130;
-
-        #endregion Member variables / fields
-
-        #region Properties
 
         /// <summary>
         /// The temperature, in degrees celsius (°C), from the last reading.
@@ -51,15 +45,15 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
         public bool IsSampling { get; protected set; } = false;
 
-        #endregion Properties
+        
 
-        #region Events and delegates
+        
 
         public event EventHandler<AtmosphericConditionChangeResult> Updated;
 
-        #endregion Events and delegates
+        
 
-        #region Constructors
+        
 
         /// <summary>
         ///     Create a new HIH6130 object using the default parameters for the component.
@@ -71,9 +65,9 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             hih6130 = new I2cPeripheral(i2cBus, address);
         }
 
-        #endregion Constructors
+        
 
-        #region Methods
+        
 
         /// <summary>
         /// Convenience method to get the current sensor readings. For frequent reads, use
@@ -178,6 +172,6 @@ namespace Meadow.Foundation.Sensors.Atmospheric
             Conditions.Temperature = (((float)reading / 16383) * 165) - 40;
         }
 
-        #endregion Methods
+        
     }
 }

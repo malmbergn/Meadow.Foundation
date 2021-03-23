@@ -14,8 +14,6 @@ namespace Meadow.Foundation.Sensors.Temperature
         FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
         IAtmosphericSensor, ITemperatureSensor
     {
-        #region Enums
-
         /// <summary>
         ///     Indicate the resolution of the sensor.
         /// </summary>
@@ -32,18 +30,10 @@ namespace Meadow.Foundation.Sensors.Temperature
             Resolution13Bits
         }
 
-        #endregion Enums
-
-        #region Member variables / fields
-
         /// <summary>
         ///     TMP102 sensor.
         /// </summary>
         private readonly II2cPeripheral tmp102;
-
-        #endregion Member variables / fields
-
-        #region Properties
 
         /// <summary>
         ///     Backing variable for the SensorResolution property.
@@ -88,15 +78,15 @@ namespace Meadow.Foundation.Sensors.Temperature
         /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
         public bool IsSampling { get; protected set; } = false;
 
-        #endregion Properties
+        
 
-        #region Events and delegates
+        
 
         public event EventHandler<AtmosphericConditionChangeResult> Updated;
 
-        #endregion Events and delegates
+        
 
-        #region Constructors
+        
 
         /// <summary>
         ///     Create a new TMP102 object using the default configuration for the sensor.
@@ -112,9 +102,9 @@ namespace Meadow.Foundation.Sensors.Temperature
                                  Resolution.Resolution13Bits : Resolution.Resolution12Bits;
         }
 
-        #endregion Constructors
+        
 
-        #region Methods
+        
 
         /// <summary>
         /// Convenience method to get the current sensor readings. For frequent reads, use
@@ -204,6 +194,6 @@ namespace Meadow.Foundation.Sensors.Temperature
             Conditions.Temperature = (float)(sensorReading * 0.0625);
         }
 
-        #endregion Methods
+        
     }
 }

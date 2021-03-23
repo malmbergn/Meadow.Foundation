@@ -14,17 +14,11 @@ namespace Meadow.Foundation.Sensors.Motion
     public class Adxl335 : FilterableChangeObservableBase<AccelerationConditionChangeResult, AccelerationConditions>,
         IAccelerometer
     {
-        #region Constants
-
         /// <summary>
         ///     Minimum value that can be used for the update interval when the
         ///     sensor is being configured to generate interrupts.
         /// </summary>
         public const ushort MinimumPollingPeriod = 100;
-
-        #endregion Constants
-
-        #region Member variables / fields
 
         /// <summary>
         ///     Analog input channel connected to the x axis.
@@ -46,9 +40,9 @@ namespace Meadow.Foundation.Sensors.Motion
         /// </summary>
         private float _zeroGVoltage => SupplyVoltage / 2f;
 
-        #endregion Member variables / fields
+        
 
-        #region Properties
+        
 
         /// <summary>
         ///     Acceleration along the X-axis.
@@ -111,15 +105,15 @@ namespace Meadow.Foundation.Sensors.Motion
         /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
         public bool IsSampling { get; protected set; } = false;
 
-        #endregion Properties
+        
 
-        #region Events and delegates
+        
 
         public event EventHandler<AccelerationConditionChangeResult> Updated;
 
-        #endregion Events and delegates
+        
 
-        #region Constructors
+        
 
         /// <summary>
         ///     Create a new ADXL335 sensor object.
@@ -141,9 +135,9 @@ namespace Meadow.Foundation.Sensors.Motion
             SupplyVoltage = 3.3f;
         }
 
-        #endregion Constructors
+        
 
-        #region Methods
+        
 
         ///// <summary>
         ///// Convenience method to get the current temperature. For frequent reads, use
@@ -242,6 +236,6 @@ namespace Meadow.Foundation.Sensors.Motion
             return new Vector(await _xPort.Read(), await _yPort.Read(), await _zPort.Read());
         }
 
-        #endregion Methods
+        
     }
 }

@@ -7,22 +7,26 @@ namespace Sensors.Rotary.RotaryEncoder_Sample
 {
     public class MeadowApp : App<F7Micro, MeadowApp>
     {
-        protected int value = 0;
+        protected float value = 0;
         protected RotaryEncoder rotaryEncoder;
 
         public MeadowApp()
         {
             Console.WriteLine("Initializing...");
 
-            rotaryEncoder = new RotaryEncoder(Device, Device.Pins.D13, Device.Pins.D14);
+            rotaryEncoder = new RotaryEncoder(Device, Device.Pins.D05, Device.Pins.D06);
             rotaryEncoder.Rotated += (s, e) => 
             {
                 if (e.Direction == Meadow.Peripherals.Sensors.Rotary.RotationDirection.Clockwise)
-                { value++; }
+                { 
+                    value--;
+                    Console.WriteLine("Value = {0} CCW", value);
+                }
                 else
-                { value--; }
-
-                Console.WriteLine("Value = {0}", value);
+                { 
+                    value++;
+                    Console.WriteLine("Value = {0} CW", value);
+                }
             };
 
             Console.WriteLine("RotaryEncoder ready...");

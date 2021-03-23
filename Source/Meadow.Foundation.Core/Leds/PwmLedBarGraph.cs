@@ -18,9 +18,11 @@ namespace Meadow.Foundation.Leds
         /// <summary>
         /// A value between 0 and 1 that controls the number of LEDs that are activated
         /// </summary>
+        float percentage;
         public float Percentage
         {
-            set => SetPercentage(value);
+            get => percentage;
+            set => SetPercentage(percentage = value);
         }
 
         /// <summary>
@@ -47,26 +49,6 @@ namespace Meadow.Foundation.Leds
             {
                 pwmLeds[i] = new PwmLed(ports[i], forwardVoltage);
             }
-        }
-
-        /// <summary>
-        /// Set the LED state
-        /// </summary>
-        /// <param name="index">index of the LED</param>
-        /// <param name="isOn"></param>
-        public void SetLed(int index, bool isOn)
-        {
-            pwmLeds[index].IsOn = isOn;
-        }
-
-        /// <summary>
-        /// Set the brightness of an individual LED when using PWM
-        /// </summary>
-        /// <param name="index"></param>
-        /// <param name="brightness"></param>
-        public void SetLedBrightness(int index, float brightness)
-        {
-            pwmLeds[index].SetBrightness(brightness);
         }
 
         /// <summary>
@@ -100,13 +82,92 @@ namespace Meadow.Foundation.Leds
         }
 
         /// <summary>
+        /// Returns the index of the last LED turned on
+        /// </summary>
+        /// <returns></returns>
+        public int GetTopLedForPercentage()
+        {
+            return (int)Math.Max(0, percentage * Count - 1);
+        }
+
+        /// <summary>
+        /// Set the LED state
+        /// </summary>
+        /// <param name="index">index of the LED</param>
+        /// <param name="isOn"></param>
+        public void SetLed(int index, bool isOn)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = isOn;
+        }
+
+        /// <summary>
+        /// Set the brightness of an individual LED when using PWM
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="brightness"></param>
+        public void SetLedBrightness(int index, float brightness)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = false;
+            pwmLeds[index].SetBrightness(brightness);
+        }
+
+        /// <summary>
+        /// Starts a blink animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        public void SetLedBlink(int index, int onDuration = 200, int offDuration = 200, float highBrightness = 1, float lowBrightness = 0) 
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = false;
+            pwmLeds[index].StartBlink(onDuration, offDuration, highBrightness, lowBrightness);
+        }
+
+        /// <summary>
+        /// Starts a pulse animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="pulseDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        public void SetLedPulse(int index, int pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F) 
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].StartPulse(pulseDuration, highBrightness, lowBrightness);
+        }
+
+        /// <summary>
         /// Start the Blink animation which sets the brightness of the LED alternating between a low and high brightness setting, using the durations provided.
         /// </summary>
         /// <param name="onDuration">On duration.</param>
         /// <param name="offDuration">Off duration.</param>
         /// <param name="highBrightness">High brigtness.</param>
         /// <param name="lowBrightness">Low brightness.</param>
-        public void StartBlink(uint onDuration = 200, uint offDuration = 200, float highBrightness = 1, float lowBrightness = 0)
+        public void StartBlink(int onDuration = 200, int offDuration = 200, float highBrightness = 1, float lowBrightness = 0)
         {
             foreach (var pwmLed in pwmLeds)
             {
@@ -120,7 +181,7 @@ namespace Meadow.Foundation.Leds
         /// <param name="highBrightness">High brigtness.</param>
         /// <param name="lowBrightness">Low brightness.</param>
         /// </summary>
-        public void StartPulse(uint pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F)
+        public void StartPulse(int pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F)
         {
             if (highBrightness > 1 || highBrightness <= 0)
             {
@@ -149,6 +210,124 @@ namespace Meadow.Foundation.Leds
             foreach (var pwmLed in pwmLeds)
             {
                 pwmLed.Stop();
+            }
+        }
+
+        /// <summary>
+        /// Set the brightness of an individual LED when using PWM
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="brightness"></param>
+        [Obsolete("Method deprecated: use SetLedBrightness(int index, float brightness)")]
+        public void SetLedBrightness(uint index, float brightness)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = false;
+            pwmLeds[index].SetBrightness(brightness);
+        }
+
+        /// <summary>
+        /// Set the LED state
+        /// </summary>
+        /// <param name="index">index of the LED</param>
+        /// <param name="isOn"></param>
+        [Obsolete("Method deprecated: use SetLed(int index, bool isOn)")]
+        public void SetLed(uint index, bool isOn)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = isOn;
+        }
+
+        /// <summary>
+        /// Starts a blink animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        [Obsolete("Method deprecated: use SetLedBlink(int index, int onDuration, int offDuration, float highBrightness, float lowBrightness)")]
+        public void SetLedBlink(uint index, uint onDuration, uint offDuration, float highBrightness, float lowBrightness)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].Stop();
+            pwmLeds[index].IsOn = false;
+            pwmLeds[index].StartBlink(onDuration, offDuration, highBrightness, lowBrightness);
+        }
+
+        /// <summary>
+        /// Starts a pulse animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="pulseDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        [Obsolete("Method deprecated: use SetLedPulse(int index, int pulseDuration, float highBrightness, float lowBrightness)")]
+        public void SetLedPulse(uint index, uint pulseDuration, float highBrightness, float lowBrightness)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            pwmLeds[index].StartPulse(pulseDuration, highBrightness, lowBrightness);
+        }
+
+        /// <summary>
+        /// Start the Blink animation which sets the brightness of the LED alternating between a low and high brightness setting, using the durations provided.
+        /// </summary>
+        /// <param name="onDuration">On duration.</param>
+        /// <param name="offDuration">Off duration.</param>
+        /// <param name="highBrightness">High brigtness.</param>
+        /// <param name="lowBrightness">Low brightness.</param>
+        [Obsolete("Method deprecated: use StartBlink(int onDuration, int offDuration, float highBrightness, float lowBrightness)")]
+        public void StartBlink(uint onDuration, uint offDuration, float highBrightness, float lowBrightness)
+        {
+            foreach (var pwmLed in pwmLeds)
+            {
+                pwmLed.StartBlink(onDuration, offDuration, highBrightness, lowBrightness);
+            }
+        }
+
+        /// <summary>
+        /// Start the Pulse animation which gradually alternates the brightness of the LED between a low and high brightness setting, using the durations provided.
+        /// <param name="pulseDuration">Pulse duration.</param>
+        /// <param name="highBrightness">High brigtness.</param>
+        /// <param name="lowBrightness">Low brightness.</param>
+        /// </summary>
+        [Obsolete("Method deprecated: use StartPulse(int pulseDuration, float highBrightness, float lowBrightness)")]
+        public void StartPulse(uint pulseDuration, float highBrightness, float lowBrightness)
+        {
+            if (highBrightness > 1 || highBrightness <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(highBrightness), "highBrightness must be > 0 and <= 1");
+            }
+            if (lowBrightness >= 1 || lowBrightness < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lowBrightness), "lowBrightness must be >= 0 and < 1");
+            }
+            if (lowBrightness >= highBrightness)
+            {
+                throw new Exception("lowBrightness must be less than highbrightness");
+            }
+
+            foreach (var pwmLed in pwmLeds)
+            {
+                pwmLed.StartPulse(pulseDuration, highBrightness, lowBrightness);
             }
         }
     }

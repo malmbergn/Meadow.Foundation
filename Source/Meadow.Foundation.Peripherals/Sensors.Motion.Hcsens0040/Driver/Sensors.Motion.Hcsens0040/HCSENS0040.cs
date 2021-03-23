@@ -8,16 +8,10 @@ namespace Meadow.Foundation.Sensors.Motion
     /// </summary>
     public class Hcsens0040
     {
-        #region Member variables and fields
-
         /// <summary>
         ///     Digital input port
         /// </summary>
         private readonly IDigitalInputPort _digitalInputPort;
-
-        #endregion Member variables and fields
-
-        #region Delegates and events
 
         /// <summary>
         ///     Delgate for the motion start and end events.
@@ -29,9 +23,9 @@ namespace Meadow.Foundation.Sensors.Motion
         /// </summary>
         public event MotionChange OnMotionDetected;
 
-        #endregion Delegates and events
+        
 
-        #region Constructors
+        
 
         /// <summary>
         /// Create a new Parallax PIR object connected to an input pin and IO Device.
@@ -39,7 +33,7 @@ namespace Meadow.Foundation.Sensors.Motion
         /// <param name="device"></param>
         /// <param name="inputPin"></param>        
         public Hcsens0040(IIODevice device, IPin pin) : 
-            this (device.CreateDigitalInputPort(pin, InterruptMode.EdgeRising, ResistorMode.PullDown)) { }
+            this (device.CreateDigitalInputPort(pin, InterruptMode.EdgeRising, ResistorMode.InternalPullDown)) { }
 
         /// <summary>
         /// Create a new Parallax PIR object connected to a interrupt port.
@@ -58,9 +52,9 @@ namespace Meadow.Foundation.Sensors.Motion
             }
         }
 
-        #endregion Constructors
+        
 
-        #region Interrupt handlers
+        
 
         /// <summary>
         ///     Catch the PIR motion change interrupts and work out which interrupt should be raised.
@@ -73,6 +67,6 @@ namespace Meadow.Foundation.Sensors.Motion
             }
         }
 
-        #endregion Interrupt handlers
+        
     }
 }

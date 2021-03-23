@@ -8,8 +8,6 @@ namespace Meadow.Foundation.Sensors.Motion
 {
     public class Apds9960
     {
-        #region Member variables / fields
-
         /// <summary>
         ///     Communication bus used to communicate with the sensor.
         ///     This driver is a work-in-progress, contributions are always welcome
@@ -190,9 +188,9 @@ namespace Meadow.Foundation.Sensors.Motion
         static readonly byte DEFAULT_GCONF3 = 0;       // All photodiodes active during gesture
         static readonly byte DEFAULT_GIEN = 0;       // Disable gesture interrupts
 
-        #endregion Member variables / fields
+        
 
-        #region Enums
+        
 
         /* Direction definitions */
         public enum Direction
@@ -216,9 +214,9 @@ namespace Meadow.Foundation.Sensors.Motion
             ALL_STATE
         };
 
-        #endregion Enums
+        
 
-        #region Constructors
+        
 
         /// <summary>
         ///     Create a new instance of the APDS9960 communicating over the I2C interface.
@@ -259,9 +257,9 @@ namespace Meadow.Foundation.Sensors.Motion
         //    throw new NotImplementedException();
         }
 
-        #endregion Constructors
+        
 
-        #region Methods
+        
 
         void Initialize()
         {
@@ -1676,9 +1674,9 @@ namespace Meadow.Foundation.Sensors.Motion
             apds9960.WriteRegister(APDS9960_GCONF4, val);
         }
 
-        #endregion Methods
+        
 
-        #region Classes
+        
 
         /* Container for gesture data */
         public class GestureData
@@ -1693,7 +1691,7 @@ namespace Meadow.Foundation.Sensors.Motion
             public byte OutThreshold { get; set; }
         }
 
-        #endregion Classes
+        
     }
 
 }
