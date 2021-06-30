@@ -6,16 +6,12 @@ namespace Meadow.Foundation.Audio.Radio
 {
     public class Tea5767
     {
-        #region Member variables / fields
         /// <summary>
         ///     TEA5767 radio.
         /// </summary>
-        private readonly II2cPeripheral _I2cPeripheral;
+        private readonly II2cPeripheral i2cPeripheral;
 
-        #endregion Member variables / fields
-
-
-        static readonly byte TEA5767_ADDRESS = 0x60;
+        const byte TEA5767_ADDRESS = 0x60;
         static byte FIRST_DATA = 0;
         static byte SECOND_DATA = 1;
         static byte THIRD_DATA = 2;
@@ -56,31 +52,16 @@ namespace Meadow.Foundation.Audio.Radio
 
         public bool IsMuted { get; set; }
 
-        #region Properties
-
-        #endregion Properties
-
-        #region Constructors
-
-        /// <summary>
-        ///     Default constructor is private to prevent it being used.
-        /// </summary>
-        private Tea5767() { }
-
         /// <summary>
         ///     Create a new TEA5767 object using the default parameters
         /// </summary>
         /// <param name="address">Address of the bus on the I2C display.</param>
-        public Tea5767(II2cBus i2cBus, byte address = 0x60)
+        public Tea5767(II2cBus i2cBus, byte address = TEA5767_ADDRESS)
         {
-            _I2cPeripheral = new I2cPeripheral(i2cBus, address);
+            i2cPeripheral = new I2cPeripheral(i2cBus, address);
 
             InitTEA5767();
         }
-
-        #endregion Constructors
-
-        #region Methods
 
         void InitTEA5767()
         {
@@ -153,7 +134,7 @@ namespace Meadow.Foundation.Audio.Radio
 
         void TransmitData()
         {
-            _I2cPeripheral.WriteBytes(transmissionData);
+            i2cPeripheral.WriteBytes(transmissionData);
 
             Thread.Sleep(100);
         }
@@ -198,7 +179,7 @@ namespace Meadow.Foundation.Audio.Radio
 
         void ReadStatus()
         {
-            reception_data = _I2cPeripheral.ReadBytes(5);
+            reception_data = i2cPeripheral.ReadBytes(5);
             Thread.Sleep(100);
         }
 
@@ -475,7 +456,5 @@ namespace Meadow.Foundation.Audio.Radio
             transmissionData[FOURTH_DATA] &= 253;
             TransmitData();
         }
-
-        #endregion Methods
     }
 }

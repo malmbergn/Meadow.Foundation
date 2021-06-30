@@ -1,201 +1,76 @@
-﻿using System;
+﻿using Meadow.Hardware;
+using Meadow.Peripherals.Sensors;
+using Meadow.Units;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Meadow.Hardware;
-using Meadow.Peripherals.Sensors.Atmospheric;
-using Meadow.Peripherals.Sensors.Temperature;
 
 namespace Meadow.Foundation.Sensors.Temperature
 {
     /// <summary>
     /// TMP102 Temperature sensor object.
     /// </summary>    
-    public class Lm75 :
-        FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
-        IAtmosphericSensor, ITemperatureSensor
+    public partial class Lm75 : ByteCommsSensorBase<Units.Temperature>, ITemperatureSensor
     {
-        #region Enums
-
+        //==== Events
         /// <summary>
-        /// LM75 Registers
+        /// Raised when the value of the reading changes.
         /// </summary>
-        enum Register : byte
-        {
-            LM_TEMP = 0x00,
-            LM_CONFIG = 0x01,
-            LM_THYST = 0x02,
-            LM_TOS = 0x03
-        }
+        public event EventHandler<IChangeResult<Units.Temperature>> TemperatureUpdated = delegate { };
 
-        #endregion Enums
+        //==== internals
 
-        #region Member variables / fields
-
-        /// <summary>
-        ///     LM75 sensor.
-        /// </summary>
-        private readonly II2cPeripheral lm75;
-
-        #endregion Member variables / fields
-
-        #region Properties
-
+        //==== properties
         public byte DEFAULT_ADDRESS => 0x48;
 
         /// <summary>
-        /// The AtmosphericConditions from the last reading.
+        /// The Temperature value from the last reading.
         /// </summary>
-        public AtmosphericConditions Conditions { get; protected set; } = new AtmosphericConditions();
-
-        /// <summary>
-        /// The temperature, in degrees celsius (°C), from the last reading.
-        /// </summary>
-        public float Temperature => Conditions.Temperature;
-
-        // internal thread lock
-        private object _lock = new object();
-        private CancellationTokenSource SamplingTokenSource;
-
-        /// <summary>
-        /// Gets a value indicating whether the analog input port is currently
-        /// sampling the ADC. Call StartSampling() to spin up the sampling process.
-        /// </summary>
-        /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
-        public bool IsSampling { get; protected set; } = false;
-
-        #endregion Properties
-
-        #region Events and delegates
-
-        public event EventHandler<AtmosphericConditionChangeResult> Updated;
-
-        #endregion Events and delegates
-
-        #region Constructors
-
-        /// <summary>
-        ///     Default constructor (private to prevent it being called).
-        /// </summary>
-        private Lm75() { }
+        public Units.Temperature? Temperature { get; protected set; }
 
         /// <summary>
         ///     Create a new TMP102 object using the default configuration for the sensor.
         /// </summary>
         /// <param name="address">I2C address of the sensor.</param>
         public Lm75(II2cBus i2cBus, byte address = 0x48)
+            : base(i2cBus, address)
         {
-            lm75 = new I2cPeripheral(i2cBus, address);
-        }
-
-        #endregion Constructors
-
-        #region Methods
-
-        /// <summary>
-        /// Convenience method to get the current sensor readings. For frequent reads, use
-        /// StartSampling() and StopSampling() in conjunction with the SampleBuffer.
-        /// </summary>
-        public async Task<AtmosphericConditions> Read()
-        {
-            Conditions = await Read();
-
-            return Conditions;
-        }
-
-        public void StartUpdating(int standbyDuration = 1000)
-        {
-            // thread safety
-            lock (_lock)
-            {
-                if (IsSampling) return;
-
-                // state muh-cheen
-                IsSampling = true;
-
-                SamplingTokenSource = new CancellationTokenSource();
-                CancellationToken ct = SamplingTokenSource.Token;
-
-                AtmosphericConditions oldConditions;
-                AtmosphericConditionChangeResult result;
-                Task.Factory.StartNew(async () => {
-                    while (true)
-                    {
-                        if (ct.IsCancellationRequested)
-                        {
-                            // do task clean up here
-                            _observers.ForEach(x => x.OnCompleted());
-                            break;
-                        }
-                        // capture history
-                        oldConditions = Conditions;
-
-                        // read
-                        Update(); //syncrhnous for this driver 
-
-                        // build a new result with the old and new conditions
-                        result = new AtmosphericConditionChangeResult(oldConditions, Conditions);
-
-                        // let everyone know
-                        RaiseChangedAndNotify(result);
-
-                        // sleep for the appropriate interval
-                        await Task.Delay(standbyDuration);
-                    }
-                }, SamplingTokenSource.Token);
-            }
-        }
-
-        protected void RaiseChangedAndNotify(AtmosphericConditionChangeResult changeResult)
-        {
-            Updated?.Invoke(this, changeResult);
-            base.NotifyObservers(changeResult);
         }
 
         /// <summary>
-        /// Stops sampling the temperature.
+        /// Update the Temperature property.
         /// </summary>
-        public void StopUpdating()
+        protected override Task<Units.Temperature> ReadSensor()
         {
-            lock (_lock)
-            {
-                if (!IsSampling) return;
+            return Task.Run(() => {
 
-                SamplingTokenSource?.Cancel();
+                Peripheral.Write((byte)Registers.LM_TEMP);
 
-                // state muh-cheen
-                IsSampling = false;
-            }
+                Peripheral.ReadRegister((byte)Registers.LM_TEMP, ReadBuffer.Span[0..2]);
+
+                // Details in Datasheet P10
+                double temp = 0;
+                ushort raw = (ushort)((ReadBuffer.Span[0] << 3) | (ReadBuffer.Span[1] >> 5));
+                if ((ReadBuffer.Span[0] & 0x80) == 0) {
+                    // temperature >= 0
+                    temp = raw * 0.125;
+                } else {
+                    raw |= 0xF800;
+                    raw = (ushort)(~raw + 1);
+
+                    temp = raw * (-1) * 0.125;
+                }
+
+                //only accurate to +/- 0.1 degrees
+                return(new Units.Temperature((float)Math.Round(temp, 1), Units.Temperature.UnitType.Celsius));
+
+            });
         }
 
-        /// <summary>
-        ///     Update the Temperature property.
-        /// </summary>
-        public void Update()
+        protected override void RaiseEventsAndNotify(IChangeResult<Units.Temperature> changeResult)
         {
-            lm75.WriteByte((byte)Register.LM_TEMP);
-
-            var data = lm75.ReadRegisters((byte)Register.LM_TEMP, 2);
-
-            // Details in Datasheet P10
-            double temp = 0;
-            ushort raw = (ushort)((data[0] << 3) | (data[1] >> 5));
-            if ((data[0] & 0x80) == 0)
-            {
-                // temperature >= 0
-                temp = raw * 0.125;
-            }
-            else
-            {
-                raw |= 0xF800;
-                raw = (ushort)(~raw + 1);
-
-                temp = raw * (-1) * 0.125;
-            }
-
-            //only accurate to +/- 0.1 degrees
-            Conditions.Temperature = (float)Math.Round(temp, 1);
+            TemperatureUpdated?.Invoke(this, changeResult);
+            base.RaiseEventsAndNotify(changeResult);
         }
-
-        #endregion Methods
     }
 }

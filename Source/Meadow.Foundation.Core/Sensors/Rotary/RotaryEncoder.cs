@@ -1,4 +1,6 @@
-﻿using Meadow.Hardware;
+﻿using System;
+using System.Threading.Tasks;
+using Meadow.Hardware;
 using Meadow.Peripherals.Sensors.Rotary;
 
 namespace Meadow.Foundation.Sensors.Rotary
@@ -6,42 +8,58 @@ namespace Meadow.Foundation.Sensors.Rotary
     /// <summary>
     /// Digital rotary encoder that uses two-bit Gray Code to encode rotation.
     /// </summary>
-    public class RotaryEncoder : IRotaryEncoder
+    public class RotaryEncoder : ObservableBase<RotationDirection>, IRotaryEncoder
     {
-        #region Properties
+        //==== events
+        /// <summary>
+        /// Raised when the rotary encoder is rotated and returns a RotaryTurnedEventArgs object which describes the direction of rotation.
+        /// </summary>
+        public event EventHandler<RotaryChangeResult> Rotated = delegate { };
 
+        //==== properties
         /// <summary>
         /// Returns the pin connected to the A-phase output on the rotary encoder.
         /// </summary>
-        public IDigitalInputPort APhasePort { get; }
+        protected IDigitalInputPort APhasePort { get; }
 
         /// <summary>
         /// Returns the pin connected to the B-phase output on the rotary encoder.
         /// </summary>
-        public IDigitalInputPort BPhasePort { get; }
+        protected IDigitalInputPort BPhasePort { get; }
 
         /// <summary>
-        /// Raised when the rotary encoder is rotated and returns a RotaryTurnedEventArgs object which describes the direction of rotation.
+        /// Gets the last direction of rotation
         /// </summary>
-        public event RotaryTurnedEventHandler Rotated = delegate { };
+        public RotationDirection? LastDirectionOfRotation { get; protected set; }
 
-        #endregion
-
-        #region Member variables / fields
+        //==== internals
+        /// <summary>
+        /// Contains the previous offset used to find direction information
+        /// </summary>
+        private int dynamicOffset = 0;
 
         /// <summary>
-        /// Whether or not we're processing the gray code (encoding of rotational information)
+        /// The rotary encoder has 2 inputs, called A and B. Because of its design
+        /// either A or B changes but not both on each notification when the encoder
+        /// is rotated. Because of this the direction to be determined. If A goes
+        /// High before B then we are rotating one direction if B goes high before A
+        /// we are rotating the other direction. For each change we must consider the
+        /// previous state of A and B and the current state of A and B. This can be
+        /// represented as 4-bit number.
+        ///  3 2 1 0
+        /// |old|new|
+        /// |A|B|A|B|
+        ///
+        /// Bits 0 and 1 represent the current state of A and B while bits 2 and 3
+        /// represent previous states of A and B. This 4-bit number yields 16 possible
+        /// combination, however, there are combination that for which no change is
+        /// represent. For example, the if bits 0-3 are all 0, this would mean that A
+        /// was Low and is Low, and that B was Low and is Low (nothing changed.)
         /// </summary>
-        protected bool _processing = false;
-
-        /// <summary>
-        /// Two sets of gray code results to determine direction of rotation 
-        /// </summary>
-        protected TwoBitGrayCode[] _results = new TwoBitGrayCode[2];
-
-        #endregion
-
-        #region Constructors
+        private readonly int[] RotEncLookup = { 0, -1, 1, 0,
+                                                1, 0, 0, -1,
+                                               -1, 0, 0, 1,
+                                                0, 1, -1, 0 };
 
         /// <summary>
         /// Instantiate a new RotaryEncoder on the specified pins.
@@ -49,9 +67,10 @@ namespace Meadow.Foundation.Sensors.Rotary
         /// <param name="device"></param>
         /// <param name="aPhasePin"></param>
         /// <param name="bPhasePin"></param>
-        public RotaryEncoder(IIODevice device, IPin aPhasePin, IPin bPhasePin) :
-            this(device.CreateDigitalInputPort(aPhasePin, InterruptMode.EdgeBoth, ResistorMode.PullUp, 200, 50),
-                 device.CreateDigitalInputPort(bPhasePin, InterruptMode.EdgeBoth, ResistorMode.PullUp, 200, 50)) { }
+        public RotaryEncoder(IDigitalInputController device, IPin aPhasePin, IPin bPhasePin) :
+            this(device.CreateDigitalInputPort(aPhasePin, InterruptMode.EdgeBoth, ResistorMode.InternalPullDown, 0, 0.1),
+                 device.CreateDigitalInputPort(bPhasePin, InterruptMode.EdgeBoth, ResistorMode.InternalPullDown, 0, 0.1))
+        { }
 
         /// <summary>
         /// Instantiate a new RotaryEncoder on the specified ports
@@ -63,69 +82,63 @@ namespace Meadow.Foundation.Sensors.Rotary
             APhasePort = aPhasePort;
             BPhasePort = bPhasePort;
 
-            APhasePort.Changed += PhasePinChanged;
-            BPhasePort.Changed += PhasePinChanged;
+            APhasePort.Changed += PhaseAPinChanged;
+            BPhasePort.Changed += PhaseBPinChanged;
         }
 
-        #endregion
-
-        #region Methods
-
-        private void PhasePinChanged(object sender, DigitalInputPortEventArgs e)
+        private void PhaseAPinChanged(object s, DigitalPortResult result)
         {
-            //Console.WriteLine((!_processing ? "1st result: " : "2nd result: ") + "A{" + (APhasePin.Read() ? "1" : "0") + "}, " + "B{" + (BPhasePin.Read() ? "1" : "0") + "}");
+            // Clear bit A bit
+            int new2LsBits = dynamicOffset & 0x02;    // Save bit 2 (B)
 
-            // the first time through (not processing) store the result in array slot 0.
-            // second time through (is processing) store the result in array slot 1.
-            _results[_processing ? 1 : 0].APhase = APhasePort.State;
-            _results[_processing ? 1 : 0].BPhase = BPhasePort.State;
-
-            // if this is the second result that we're reading, we should now have 
-            // enough information to know which way it's turning, so process the
-            // gray code
-            if (_processing)
-            {
-                ProcessRotationResults();
+            if (result.New.State) {
+                new2LsBits |= 0x01;                     // Set bit 1 (A)
             }
 
-            // toggle our processing flag
-            _processing = !_processing;
+            FindDirection(new2LsBits);
         }
 
-        /// <summary>
-        /// Determines the direction of rotation when the PhasePinChanged event is triggered
-        /// </summary>
-        protected void ProcessRotationResults()
+        private void PhaseBPinChanged(object s, DigitalPortResult result)
         {
-            // if there hasn't been any change, then it's a garbage reading. so toss it out.
-            if (_results[0].APhase == _results[1].APhase && 
-                _results[0].BPhase == _results[1].BPhase) 
-                //Console.WriteLine("Garbage");
-                return;
-            
-            // start by reading the a phase pin. if it's High
-            if (_results[0].APhase)
-            {
-                // if b phase went down, then it spun counter-clockwise
-                OnRaiseRotationEvent(_results[1].BPhase ? RotationDirection.CounterClockwise : RotationDirection.Clockwise);
+            // Clear bit B bit
+            int new2LsBits = dynamicOffset & 0x01;    // Save bit 1 (A)
+
+            if (result.New.State) {
+                new2LsBits |= 0x02;                     // Set bit 2 (B)
             }
-            // if a phase is low
-            else
-            {
-                // if b phase went up, then it spun counter-clockwise
-                OnRaiseRotationEvent(_results[1].BPhase ? RotationDirection.CounterClockwise : RotationDirection.Clockwise);
-            }
+
+            FindDirection(new2LsBits);
         }
 
-        /// <summary>
-        /// Invokes the RotaryTurnedEventHandler, passing the direction in the RotaryTurnedEventArgs
-        /// </summary>
-        /// <param name="direction"></param>
-        protected void OnRaiseRotationEvent(RotationDirection direction)
+        private void FindDirection(int new2LsBits)
         {
-            Rotated?.Invoke(this, new RotaryTurnedEventArgs(direction));
+            dynamicOffset <<= 2;          // Move previous A & B to bits 2 & 3
+            dynamicOffset |= new2LsBits;  // Set the current A & B states in bits 0 & 1
+            dynamicOffset &= 0x0000000f;  // Save only lowest 4 bits
+
+            int direction = RotEncLookup[dynamicOffset];
+
+            // save state
+            var oldRotation = LastDirectionOfRotation;
+
+            switch (direction) {
+                case 0: // no valid change
+                    return;
+                case 1: // clockwise
+                    LastDirectionOfRotation = RotationDirection.Clockwise;
+                    RaiseRotatedAndNotify(new RotaryChangeResult(RotationDirection.Clockwise, oldRotation));
+                    break;
+                default: // counter clockwise
+                    LastDirectionOfRotation = RotationDirection.CounterClockwise;
+                    RaiseRotatedAndNotify(new RotaryChangeResult(RotationDirection.CounterClockwise, oldRotation));
+                    break;
+            }
         }
 
-        #endregion
+        void RaiseRotatedAndNotify(RotaryChangeResult result)
+        {
+            Rotated?.Invoke(this, result);
+            base.NotifyObservers(result);
+        }
     }
 }

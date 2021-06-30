@@ -1,6 +1,7 @@
-﻿using System;
+﻿ using System;
 using Meadow;
 using Meadow.Devices;
+using Meadow.Foundation;
 using Meadow.Foundation.Displays.ePaper;
 using Meadow.Foundation.Graphics;
 
@@ -16,27 +17,28 @@ namespace Displays.ePaper.IL91874_Sample
             Console.WriteLine("ePaper sample");
             Console.WriteLine("Create Spi bus");
 
-            var spiBus = Device.CreateSpiBus();// Device.Pins.SCK, Device.Pins.MOSI, Device.Pins.MISO, 2000);
+            var spiBus = Device.CreateSpiBus(48000);// Device.Pins.SCK, Device.Pins.MOSI, Device.Pins.MISO, 2000);
 
             Console.WriteLine("Create display driver instance");
             display = new Il91874(device: Device, spiBus: spiBus,
-                chipSelectPin: Device.Pins.D14,
+                chipSelectPin: Device.Pins.D12,
                 dcPin: Device.Pins.D13,
-                resetPin: Device.Pins.D15,
-                busyPin: Device.Pins.D12,
+                resetPin: Device.Pins.D14,
+                busyPin: Device.Pins.D15,
                 width: 176,
                 height: 264);
 
             var graphics = new GraphicsLibrary(display);
-
-            //any color but black will show the ePaper alternate color 
-          //  graphics.DrawRectangle(1, 1, 126, 32, Meadow.Foundation.Color.Red, false);
+            graphics.Rotation = GraphicsLibrary.RotationType._270Degrees;
 
             graphics.CurrentFont = new Font12x16();
-            graphics.DrawText(2, 2, "IL91874");
-            graphics.DrawText(2, 20, "Meadow F7");
 
-            int ySpacing = 12;
+            graphics.Clear();
+
+            graphics.DrawText(2, 2, "IL91874");
+            graphics.DrawText(2, 20, "Hello, Honeybees!");
+
+            /* int ySpacing = 12;
 
             for (int i = 0; i < 3; i++)
             {
@@ -46,13 +48,19 @@ namespace Displays.ePaper.IL91874_Sample
                 graphics.DrawLine(64, 50 + ySpacing * i, 84, 70 + ySpacing * i, true);
                 graphics.DrawLine(86, 70 + ySpacing * i, 106, 50 + ySpacing * i, true);
                 graphics.DrawLine(106, 50 + ySpacing * i, 126, 70 + ySpacing * i, true);
-            }
+            }*/
 
-            graphics.DrawCircle(100, 150, 50, true, false);
+            
+            graphics.DrawCircle(50, 100, 20, Color.Red, false);
+            graphics.DrawCircle(100, 100, 20, Color.White, false);
+            graphics.DrawCircle(150, 100, 20, Color.Red, true);
+            graphics.DrawCircle(200, 100, 20, Color.White, true);
 
             Console.WriteLine("Show");
 
             graphics.Show();
+
+            Console.WriteLine("Show complete");
         }
     }
 }

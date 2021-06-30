@@ -1,32 +1,60 @@
 ﻿using System;
+using System.Threading;
 using Meadow;
 using Meadow.Devices;
 using Meadow.Foundation.Sensors.Temperature;
 
-namespace Sensors.Temperature.TMP102_Sample
+namespace Sensors.Temperature.Tmp102_Sample
 {
+    // TODO: This sample needs a rewrite. See the other atmospheric samples for
+    // an example of the sample pattern.
+
     public class MeadowApp : App<F7Micro, MeadowApp>
     {
-        Tmp102 sensor;
+        Tmp102 tmp102;
 
         public MeadowApp()
         {
-            InitHardware();
+            tmp102 = new Tmp102(Device.CreateI2cBus());
 
-            sensor.StartUpdating();
+            TestUpdating();
+            //TestRead();
         }
 
-        public void InitHardware()
+        void TestUpdating()
         {
-            Console.WriteLine("Creating output ports...");
+            Console.WriteLine("Test Updating...");
 
-            sensor = new Tmp102(Device.CreateI2cBus());
-            sensor.Updated += Sensor_Updated;
+            var consumer = Tmp102.CreateObserver(
+                handler: result =>
+                {
+                    Console.WriteLine($"Temperature New Value { result.New.Celsius}C");
+                    Console.WriteLine($"Temperature Old Value { result.Old?.Celsius}C");
+                    //Console.WriteLine($"Temperature Delta Value { result.Delta?.Celsius}");
+                },
+                filter: null
+            );
+            tmp102.Subscribe(consumer);
+
+            tmp102.TemperatureUpdated += (object sender, IChangeResult<Meadow.Units.Temperature> e) =>
+            {
+                Console.WriteLine($"Temperature Updated: {e.New.Celsius:N2}C");
+            };
+
+            tmp102.StartUpdating(TimeSpan.FromSeconds(1));
         }
 
-        private void Sensor_Updated(object sender, Meadow.Peripherals.Sensors.Atmospheric.AtmosphericConditionChangeResult e)
+        void TestRead()
         {
-            Console.WriteLine($"Temp: {e.New.Temperature}");
+            Console.WriteLine("TestTmp102Sensor...");
+
+            while (true)
+            {
+                var temp = tmp102.Read().Result;
+
+                Console.WriteLine($"Temperature New Value { temp.Celsius}C");
+                Thread.Sleep(1000);
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Meadow.Hardware;
+﻿using Meadow.Devices;
+using Meadow.Hardware;
 using Meadow.Peripherals.Displays;
 using System;
 using System.Threading;
@@ -10,22 +11,15 @@ namespace Meadow.Foundation.Displays
     // * WriteMarquee (string text) // or similar
     // * SaveCustomCharacter (character)
 
-
     /// <summary>
     ///     Encapsulate the functionality required to control the Sparkfun serial Lcd display.
     /// </summary>
     public class SerialLcd : ITextDisplay
     {
-        #region Properties
-
         /// <summary>
         ///     Display configuration (width and height).
         /// </summary>
         public TextDisplayConfig DisplayConfig { get; private set; }
-
-        #endregion
-
-        #region Enums
 
         /// <summary>
         ///     Describe the cursor style to be displayed.
@@ -80,10 +74,6 @@ namespace Meadow.Foundation.Displays
             Right
         }
 
-        #endregion Enums
-
-        #region Constants
-
         /// <summary>
         ///     Byte used to prefix the extended PCD display commands.
         /// </summary>
@@ -93,10 +83,6 @@ namespace Meadow.Foundation.Displays
         ///     Byte used to prefix the interface commands.
         /// </summary>
         private const byte ConfigurationCommandCharacter = 0x7c;
-
-        #endregion Constants
-
-        #region Member variables / fields
 
         /// <summary>
         ///     Comp port being used to communicate with the display.
@@ -108,17 +94,6 @@ namespace Meadow.Foundation.Displays
         /// </summary>
         protected object _lock = new object();
 
-        #endregion Member variable / fields
-
-        #region Constructors
-
-        /// <summary>
-        ///     Make the default constructor private to prevent it being called.
-        /// </summary>
-        private SerialLcd()
-        {
-        }
-
         /// <summary>
         ///     Create a new SerialLcd object.
         /// </summary>
@@ -127,7 +102,7 @@ namespace Meadow.Foundation.Displays
         /// <param name="parity">Parity to use (default is None).</param>
         /// <param name="dataBits">Number of data bits (default is 8 data bits).</param>
         /// <param name="stopBits">Number of stop bits (default is one stop bit).</param>
-        public SerialLcd(IIODevice device, SerialPortName port, TextDisplayConfig config = null, int baudRate = 9600,
+        public SerialLcd(IMeadowDevice device, SerialPortName port, TextDisplayConfig config = null, int baudRate = 9600,
             Parity parity = Parity.None, int dataBits = 8, StopBits stopBits = StopBits.One)
         {
             if (config == null)
@@ -173,10 +148,6 @@ namespace Meadow.Foundation.Displays
             Thread.Sleep(10);
         }
 
-        #endregion Constructors
-
-        #region Methods
-
         /// <summary>
         ///     Write the buffer of data to the COM port (i.e. the display).
         /// </summary>
@@ -219,7 +190,7 @@ namespace Meadow.Foundation.Displays
         /// <summary>
         ///     Clear the display.
         /// </summary>
-        public void Clear()
+        public void ClearLines()
         {
             byte[] buffer = { ExtendedCommandCharacter, 0x01 };
             Send(buffer);
@@ -352,7 +323,7 @@ namespace Meadow.Foundation.Displays
         /// </summary>
         /// <param name="lineNumber">Line to write the text on (0-3).</param>
         /// <param name="text">Text to display.</param>
-        public void WriteLine(string text, byte lineNumber)
+        public void WriteLine(string text, byte lineNumber, bool showCursor = false)
         {
             string lineText = text;
             if (text.Length > DisplayConfig.Width)
@@ -467,6 +438,10 @@ namespace Meadow.Foundation.Displays
             //Send(characterMap);
         }
 
-        #endregion Methods
+        public void Show()
+        {
+            //can safely ignore
+            //required for ITextDisplayMenu
+        }
     }
 }

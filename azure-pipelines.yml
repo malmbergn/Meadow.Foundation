@@ -1,92 +1,59 @@
 # Meadow.Foundation pipeline
 # Reference: https://aka.ms/yaml
 
+resources:
+  repositories:
+    - repository: MeadowCore
+      type: github
+      endpoint: WildernessLabs
+      name: WildernessLabs/Meadow.Core
+
 trigger:
-- master
-- develop
+  - main
+  - develop
+
+pr:
+  - main
+  - develop
 
 variables:
-  solution: '**/Meadow.Foundation.sln'
-  buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
-  internalFeedName: 'Meadow'
-  preReleasePackageBranch: 'refs/heads/develop'
-  meadowNugetServiceConnectionName: 'Meadow_Nuget'
+  solution: "**/Meadow.Foundation.sln"
+  buildPlatform: "Any CPU"
+  buildConfiguration: "Release"
+  internalFeedName: "Meadow02"
 
 pool:
   vmImage: windows-2019
 
 stages:
-- stage: Build
-  jobs:
-    - job: Build_Solution
-      steps:
-        - task: NuGetToolInstaller@1
-        # if develop branch, add a nuget source for the internal feed
-        # - task: NuGetCommand@2
-        #   displayName: Use_Beta_Nugets
-        #   condition: or(eq(variables['build.sourceBranch'], variables['preReleasePackageBranch']), endsWith(variables['preReleasePackageBranch'], variables['System.PullRequest.TargetBranch']))
-        #   inputs:
-        #     feedsToUse: 'select' 
-        #     vstsFeed: $(internalFeedName)
-        #     restoreSolution: '$(solution)'
-        - task: NuGetCommand@2
-          displayName: Use_Nugets
-          # condition: and(ne(variables['build.sourceBranch'], variables['preReleasePackageBranch']), not(endsWith(variables['preReleasePackageBranch'], variables['System.PullRequest.TargetBranch'])))
-          inputs:
-            feedsToUse: 'select' 
-            restoreSolution: '$(solution)'
-        - task: VSBuild@1
-          inputs:
-            solution: '$(solution)'
-            platform: '$(buildPlatform)'
-            configuration: '$(buildConfiguration)'
-        - task: CopyFiles@2
-          inputs:
-            Contents: '**\*.nupkg'
-            TargetFolder: '$(Build.ArtifactStagingDirectory)'
-            flattenFolders: true
-            cleanTargetFolder: true
-            overWrite: true
-        - task: PublishBuildArtifacts@1
-          inputs:
-            pathtoPublish: '$(Build.ArtifactStagingDirectory)'
-            artifactName: packages
-
-# - stage: Publish_Staging
-#   dependsOn: Build
-#   condition: and(succeeded('Build'), eq(variables['build.sourceBranch'], variables['preReleasePackageBranch']))
-#   jobs:
-#   - job: Publish_Beta_Nugets
-#     steps:
-#       - task: DownloadBuildArtifacts@0
-#         inputs:
-#           buildType: 'current'
-#           downloadType: 'single'
-#           artifactName: 'packages'
-#           downloadPath: '$(System.ArtifactsDirectory)'
-#       - task: NuGetCommand@2
-#         displayName: 'nuget push'
-#         inputs:
-#           command: 'push'
-#           feedsToUse: 'select'
-#           packagesToPush: '$(System.ArtifactsDirectory)\**\*-*.nupkg' # only publish prerelease packages denoted by '-' in version
-#           nuGetFeedType: 'internal'
-#           publishVstsFeed: $(internalFeedName)
-#           versioningScheme: 'off'
-#           allowPackageConflicts: true
-
-# - stage: Publish_Prod
-#   dependsOn: Build
-#   condition: and(succeeded('Build'), eq(variables['build.sourceBranch'], 'refs/heads/master'))
-#   jobs:
-#   - job: Publish_Nugets
-#     steps:
-#       - task: DownloadBuildArtifacts@0
-#         inputs:
-#           buildType: 'current'
-#           downloadType: 'single'
-#           artifactName: 'packages'
-#           downloadPath: '$(System.ArtifactsDirectory)'
-#       - task: NuGetToolInstaller@1
-#       - script: nuget push -ApiKey $(meadowNugetApiKey) -Source https://api.nuget.org/v3/index.json -SkipDuplicate -NoSymbols $(System.ArtifactsDirectory)\**\*.nupkg
+  - stage: Build
+    jobs:
+      - job: Build_Solution
+        steps:
+          - checkout: self
+          - checkout: MeadowCore
+          - task: NuGetToolInstaller@1
+            inputs:
+              versionSpec: 5.8
+          - task: NuGetCommand@2
+            displayName: Use_Nugets
+            inputs:
+              feedsToUse: "select"
+              vstsFeed: $(internalFeedName) #use internal feed
+              restoreSolution: "$(solution)"
+          - task: VSBuild@1
+            inputs:
+              solution: "$(solution)"
+              platform: "$(buildPlatform)"
+              configuration: "$(buildConfiguration)"
+          - task: CopyFiles@2
+            inputs:
+              Contents: '**\*.nupkg'
+              TargetFolder: "$(Build.ArtifactStagingDirectory)"
+              flattenFolders: true
+              cleanTargetFolder: true
+              overWrite: true
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+              artifactName: packages

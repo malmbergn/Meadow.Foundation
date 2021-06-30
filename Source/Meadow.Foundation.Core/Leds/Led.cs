@@ -1,15 +1,20 @@
+﻿using Meadow.Devices;
 using Meadow.Hardware;
 using Meadow.Peripherals.Leds;
+using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Meadow.Foundation.Leds
 {
-	/// <summary>
-	/// Represents a simple LED
-	/// </summary>
-	public class Led : ILed
+    /// <summary>
+    /// Represents a simple LED
+    /// </summary>
+    public class Led : ILed
 	{
-		#region Properties
+		protected Task? animationTask;
+		protected CancellationTokenSource? cancellationTokenSource;
+
 		/// <summary>
 		/// Gets the port that is driving the LED
 		/// </summary>
@@ -22,27 +27,20 @@ namespace Meadow.Foundation.Leds
 		/// <value><c>true</c> if is on; otherwise, <c>false</c>.</value>
 		public bool IsOn
 		{
-			get { return _isOn; }
+			get { return isOn; }
 			set
 			{
-				_isOn = value;
-				Port.State = _isOn;
+				isOn = value;
+				Port.State = isOn;
 			}
 		}
-		#endregion
+		protected bool isOn;
 
-		#region Fields
-		protected bool _isOn = false;
-		protected Task _animationTask = null;
-		protected bool _running = false;
-		#endregion
-
-		#region Constructor(s)
 		/// <summary>
 		/// Creates a LED through a pin directly from the Digital IO of the board
 		/// </summary>
 		/// <param name="pin"></param>
-		public Led(IIODevice device, IPin pin) :
+		public Led(IDigitalOutputController device, IPin pin) :
 			this(device.CreateDigitalOutputPort(pin, false))
 		{ }
 
@@ -54,40 +52,67 @@ namespace Meadow.Foundation.Leds
 		{
 			Port = port;
 		}
-		#endregion
-
-		#region Public Methods
-		/// <summary>
-		/// Blink animation that turns the LED on and off based on the OnDuration and offDuration values in ms
-		/// </summary>
-		/// <param name="onDuration"></param>
-		/// <param name="offDuration"></param>
-		public void StartBlink(uint onDuration = 200, uint offDuration = 200)
-		{
-			_running = true;
-
-            //TODO: Make this cancellable via Cancellation token
-            _animationTask = new Task(async () => 
-            {
-                while (_running)
-                {
-                    IsOn = true;
-                    await Task.Delay((int)onDuration);
-                    IsOn = false;
-                    await Task.Delay((int)offDuration);
-                }
-            });
-            _animationTask.Start();
-        }
 
 		/// <summary>
 		/// Stops the LED when its blinking and/or turns it off.
 		/// </summary>
 		public void Stop()
 		{
-			_running = false;
-			_isOn = false;
+			cancellationTokenSource?.Cancel();
+			IsOn = false;
 		}
-		#endregion
+
+		/// <summary>
+		/// Blink animation that turns the LED on and off based on the OnDuration and offDuration values in ms
+		/// </summary>
+		/// <param name="onDuration"></param>
+		/// <param name="offDuration"></param>
+		public void StartBlink(int onDuration = 200, int offDuration = 200)
+		{
+			Stop();
+
+			animationTask = new Task(async () =>
+			{
+				cancellationTokenSource = new CancellationTokenSource();
+				await StartBlinkAsync(onDuration, offDuration, cancellationTokenSource.Token);
+			});
+			animationTask.Start();
+		}
+		
+		protected async Task StartBlinkAsync(int onDuration, int offDuration, CancellationToken cancellationToken)
+		{
+			while (true)
+			{
+				if (cancellationToken.IsCancellationRequested)
+				{
+					break;
+				}
+
+				Port.State = true;
+				await Task.Delay((int)onDuration);
+				Port.State = false;
+				await Task.Delay((int)offDuration);
+			}
+
+			Port.State = IsOn;
+		}
+
+		/// <summary>
+		/// Blink animation that turns the LED on and off based on the OnDuration and offDuration values in ms
+		/// </summary>
+		/// <param name="onDuration"></param>
+		/// <param name="offDuration"></param>
+		[Obsolete("Method deprecated: use StartBlink(int onDuration, int offDuration)")]
+		public void StartBlink(uint onDuration, uint offDuration)
+		{
+			Stop();
+
+			animationTask = new Task(async () =>
+			{
+				cancellationTokenSource = new CancellationTokenSource();
+				await StartBlinkAsync((int)onDuration, (int)offDuration, cancellationTokenSource.Token);
+			});
+			animationTask.Start();
+		}
 	}
 }

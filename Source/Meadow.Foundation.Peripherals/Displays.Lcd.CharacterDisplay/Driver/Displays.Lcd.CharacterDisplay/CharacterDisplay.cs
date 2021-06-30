@@ -1,11 +1,4 @@
-﻿/*
-Driver ported from http://wiki.sunfounder.cc/images/b/bb/CharacterDisplay_for_Raspberry_Pi.zip
-For reference: http://wiki.sunfounder.cc/index.php?title=CharacterDisplay_Module
-Brian Kim 5/5/2018
-*/
-
-using System;
-using System.Threading;
+﻿using Meadow.Devices;
 using Meadow.Hardware;
 using Meadow.Peripherals.Displays;
 
@@ -13,227 +6,100 @@ namespace Meadow.Foundation.Displays.Lcd
 {
     public class CharacterDisplay : ITextDisplay
     {
-        private byte LCD_LINE_1 = 0x80; // # LCD RAM address for the 1st line
-        private byte LCD_LINE_2 = 0xC0; // # LCD RAM address for the 2nd line
-        private byte LCD_LINE_3 = 0x94; // # LCD RAM address for the 3rd line
-        private byte LCD_LINE_4 = 0xD4; // # LCD RAM address for the 4th line
+        protected ICharacterDisplay characterDisplay;
 
-        private byte cursorLine = 0;
-        private byte cursorColumn = 0;
+        public TextDisplayConfig DisplayConfig => characterDisplay?.DisplayConfig;
 
-        private const byte LCD_SETDDRAMADDR = 0x80;
-        private const byte LCD_SETCGRAMADDR = 0x40;
-
-        protected IDigitalOutputPort LCD_E;
-        protected IDigitalOutputPort LCD_RS;
-        protected IDigitalOutputPort LCD_D4;
-        protected IDigitalOutputPort LCD_D5;
-        protected IDigitalOutputPort LCD_D6;
-        protected IDigitalOutputPort LCD_D7;
-        protected IDigitalOutputPort LED_ON;
-
-        private bool LCD_INSTRUCTION = false;
-        private bool LCD_DATA = true;
-        private static object _lock = new object();
-
-        public TextDisplayConfig DisplayConfig { get; protected set; }
-
-        public CharacterDisplay(IIODevice device, IPin pinRS, IPin pinE, IPin pinD4, IPin pinD5, IPin pinD6, IPin pinD7, 
-            ushort rows = 4, ushort columns = 20)
+        public CharacterDisplay(
+            IMeadowDevice device,
+            IPin pinRS,
+            IPin pinE,
+            IPin pinD4,
+            IPin pinD5,
+            IPin pinD6,
+            IPin pinD7,
+            byte rows = 4, byte columns = 20)
         {
-            DisplayConfig = new TextDisplayConfig { Height = rows, Width = columns };
-
-            LCD_RS = device.CreateDigitalOutputPort(pinRS); 
-            LCD_E  = device.CreateDigitalOutputPort(pinE);
-            LCD_D4 = device.CreateDigitalOutputPort(pinD4);
-            LCD_D5 = device.CreateDigitalOutputPort(pinD5);
-            LCD_D6 = device.CreateDigitalOutputPort(pinD6);
-            LCD_D7 = device.CreateDigitalOutputPort(pinD7);
-
-            Initialize();
+            characterDisplay = new GpioCharacterDisplay(device, pinRS, pinE, pinD4, pinD5, pinD6, pinD7, rows, columns);
         }
 
-        public CharacterDisplay(IDigitalOutputPort portRS,
-                        IDigitalOutputPort portE,
-                        IDigitalOutputPort portD4,
-                        IDigitalOutputPort portD5,
-                        IDigitalOutputPort portD6,
-                        IDigitalOutputPort portD7,
-                        ushort rows = 4, ushort columns = 20)
+        public CharacterDisplay(
+            IDigitalOutputPort portRS,
+            IDigitalOutputPort portE,
+            IDigitalOutputPort portD4,
+            IDigitalOutputPort portD5,
+            IDigitalOutputPort portD6,
+            IDigitalOutputPort portD7,
+            byte rows = 4, byte columns = 20)
         {
-            DisplayConfig = new TextDisplayConfig { Height = rows, Width = columns };
-
-            LCD_RS = portRS;
-            LCD_E = portE;
-            LCD_D4 = portD4;
-            LCD_D5 = portD5;
-            LCD_D6 = portD6;
-            LCD_D7 = portD7;
-
-            Initialize();
+            characterDisplay = new GpioCharacterDisplay(portRS, portE, portD4, portD5, portD6, portD7, rows, columns);
         }
 
-    /*    public CharacterDisplay(MCP23008 mcp, ushort rows = 20, ushort columns = 4)
+        public CharacterDisplay(
+            IMeadowDevice device,
+            IPin pinV0,
+            IPin pinRS,
+            IPin pinE,
+            IPin pinD4,
+            IPin pinD5,
+            IPin pinD6,
+            IPin pinD7,
+            byte rows = 4, byte columns = 20)
         {
-            DisplayConfig = new TextDisplayConfig { Height = rows, Width = columns };
-
-            LCD_RS = mcp.CreateOutputPort(1, false);
-            LCD_E =  mcp.CreateOutputPort(2, false);
-            LCD_D4 = mcp.CreateOutputPort(3, false);
-            LCD_D5 = mcp.CreateOutputPort(4, false);
-            LCD_D6 = mcp.CreateOutputPort(5, false);
-            LCD_D7 = mcp.CreateOutputPort(6, false);
-
-            var lite = mcp.CreateOutputPort(7, true);
-
-            Initialize();
-        } */
-
-        private void Initialize()
-        {
-            SendByte(0x33, LCD_INSTRUCTION); // 110011 Initialise
-            SendByte(0x32, LCD_INSTRUCTION); // 110010 Initialise
-            SendByte(0x06, LCD_INSTRUCTION); // 000110 Cursor move direction
-            SendByte(0x0C, LCD_INSTRUCTION); // 001100 Display On,Cursor Off, Blink Off
-            SendByte(0x28, LCD_INSTRUCTION); // 101000 Data length, number of lines, font size
-            SendByte(0x01, LCD_INSTRUCTION); // 000001 Clear display
-            Thread.Sleep(5);
+            characterDisplay = new GpioCharacterDisplay(device, pinV0, pinRS, pinE, pinD4, pinD5, pinD6, pinD7, rows, columns);
         }
 
-        private void SendByte(byte value, bool mode)
+        public CharacterDisplay(
+            IPwmPort portV0,
+            IDigitalOutputPort portRS,
+            IDigitalOutputPort portE,
+            IDigitalOutputPort portD4,
+            IDigitalOutputPort portD5,
+            IDigitalOutputPort portD6,
+            IDigitalOutputPort portD7,
+            byte rows = 4, byte columns = 20)
         {
-            lock (_lock)
-            {
-                LCD_RS.State = (mode);
-
-                // high bits
-                LCD_D4.State = ((value & 0x10) == 0x10);
-                LCD_D5.State = ((value & 0x20) == 0x20);
-                LCD_D6.State = ((value & 0x40) == 0x40);
-                LCD_D7.State = ((value & 0x80) == 0x80);
-
-                ToggleEnable();
-
-                // low bits
-                LCD_D4.State = ((value & 0x01) == 0x01);
-                LCD_D5.State = ((value & 0x02) == 0x02);
-                LCD_D6.State = ((value & 0x04) == 0x04);
-                LCD_D7.State = ((value & 0x08) == 0x08);
-
-                ToggleEnable();
-
-                Thread.Sleep(5);
-            }
+            characterDisplay = new GpioCharacterDisplay(portV0, portRS, portE, portD4, portD5, portD6, portD7, rows, columns);
         }
 
-        private void ToggleEnable()
+        public CharacterDisplay(II2cBus i2cBus, byte address = I2cCharacterDisplay.DefaultI2cAddress, byte rows = 4, byte columns = 20)
         {
-            LCD_E.State = false;
-            LCD_E.State = true;
-            LCD_E.State = false;
-        }
-
-        private byte GetLineAddress(int line)
-        {
-            switch (line)
-            {
-                case 0:
-                    return LCD_LINE_1;
-                case 1:
-                    return LCD_LINE_2;
-                case 2:
-                    return LCD_LINE_3;
-                case 3:
-                    return LCD_LINE_4;
-                default: throw new ArgumentOutOfRangeException();
-            }
-        }
-
-        private void SetLineAddress(int line)
-        {
-            SendByte(GetLineAddress(line), LCD_INSTRUCTION);
-        }
-
-        public void WriteLine(string text, byte lineNumber)
-        {
-            SetLineAddress(lineNumber);
-
-            // Instead of clearing the line first, pad it with empty space on the end
-            var screenText = text.PadRight(DisplayConfig.Width, ' ');
-            if (screenText.Length > DisplayConfig.Width)
-            {
-                screenText = screenText.Substring(0, DisplayConfig.Width);            
-            }
-
-            var bytes = System.Text.Encoding.UTF8.GetBytes(screenText);
-            foreach (var b in bytes)
-            {
-                SendByte(b, LCD_DATA);
-            }
-        }
-
-        public void Write(string text)
-        {
-            string screentText = text;
-
-            if(screentText.Length + (int)cursorColumn > DisplayConfig.Width)
-            {
-                screentText = screentText.Substring(0, DisplayConfig.Width - cursorColumn);
-            }
-
-            var bytes = System.Text.Encoding.UTF8.GetBytes(screentText);
-            foreach (var b in bytes)
-            {
-                SendByte(b, LCD_DATA);
-            }
-        }
-
-        public void SetCursorPosition(byte column, byte line)
-        {
-            if(column >= DisplayConfig.Width || line >= DisplayConfig.Height)
-            {
-                throw new Exception($"CharacterDisplay: cursor out of bounds {column}, {line}");
-            }
-
-            cursorColumn = column;
-            cursorLine = line;
-
-            byte lineAddress = GetLineAddress(line);
-            var address = column + lineAddress;
-            SendByte(((byte)(LCD_SETDDRAMADDR | address)), LCD_INSTRUCTION);
-        }
-
-        public void Clear()
-        {
-            SendByte(0x01, LCD_INSTRUCTION);
-            SetCursorPosition(1, 0);
-            Thread.Sleep(5);
+            characterDisplay = new I2cCharacterDisplay(i2cBus, address, rows, columns);
         }
 
         public void ClearLine(byte lineNumber)
         {
-            SetLineAddress(lineNumber);
-
-            for(int i=0; i < DisplayConfig.Width; i++)
-            {
-                Write(" ");
-            }
+            characterDisplay?.ClearLine(lineNumber);
         }
 
-        public void SetBrightness(float brightness = 0.75F)
+        public void ClearLines()
         {
-            Console.WriteLine("Set brightness not enabled");
+            characterDisplay?.ClearLines();
         }
 
         public void SaveCustomCharacter(byte[] characterMap, byte address)
         {
-            address &= 0x7; // we only have 8 locations 0-7
-            SendByte((byte)(LCD_SETCGRAMADDR | (address << 3)), LCD_INSTRUCTION);
+            characterDisplay?.SaveCustomCharacter(characterMap, address);
+        }
 
-            for (var i = 0; i < 8; i++)
-            {
-                SendByte(characterMap[i], LCD_DATA);
-            }
+        public void SetCursorPosition(byte column, byte line)
+        {
+            characterDisplay?.SetCursorPosition(column, line);
+        }
+
+        public void Write(string text)
+        {
+            characterDisplay?.Write(text);
+        }
+
+        public void WriteLine(string text, byte lineNumber, bool showCursor = false)
+        {
+            characterDisplay?.WriteLine(text, lineNumber);
+        }
+
+        public void Show()
+        {
+            characterDisplay?.Show();
         }
     }
 }

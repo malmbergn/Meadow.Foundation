@@ -10,7 +10,6 @@ namespace MeadowApp
     {
         x74595 shiftRegister;
 
-
         public MeadowApp()
         {
             Initialize();
@@ -26,7 +25,7 @@ namespace MeadowApp
             Console.WriteLine("Set Pin 4 to high");
 
             //get the port for Pin4
-            var port4 = shiftRegister.CreateDigitalOutputPort(shiftRegister.Pins.GP4, true);
+            var port4 = shiftRegister.CreateDigitalOutputPort(shiftRegister.Pins.GP4, true, Meadow.Hardware.OutputType.OpenDrain);
 
             Console.WriteLine("Toggle pin 4");
 

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using Meadow.Devices;
 using Meadow.Hardware;
 
 namespace Meadow.Foundation.Communications
@@ -13,7 +15,7 @@ namespace Meadow.Foundation.Communications
         /// <summary>
         ///     Default buffer size for the incoming data from the serial port.
         /// </summary>
-        private const int MAXIMUM_BUFFER_SIZE = 256;
+        private const int MAXIMUM_BUFFER_SIZE = 512;
 
         #endregion Constants
 
@@ -54,7 +56,7 @@ namespace Meadow.Foundation.Communications
         /// <summary>
         ///     A complete line of text has been read, send this to the event subscriber.
         /// </summary>
-        public event LineReceived OnLineReceived;
+        public event LineReceived OnLineReceived = delegate {};
 
         #endregion Events and delegates
 
@@ -64,9 +66,11 @@ namespace Meadow.Foundation.Communications
         ///     Default constructor for the SerialTextFile class, made private to prevent the
         ///     programmer from using this method of construcing an object.
         /// </summary>
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
         private SerialTextFile()
         {
         }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
         /// <summary>
         ///     Create a new SerialTextFile and attach the instance to the specfied serial port.
@@ -77,12 +81,36 @@ namespace Meadow.Foundation.Communications
         /// <param name="dataBits">Data bits.</param>
         /// <param name="stopBits">Stop bits.</param>
         /// <param name="endOfLine">Text indicating the end of a line of text.</param>
-        public SerialTextFile(IIODevice device, SerialPortName port, int baudRate, Parity parity, int dataBits, StopBits stopBits,
+        public SerialTextFile(ISerialController device, SerialPortName port, int baudRate, Parity parity, int dataBits, StopBits stopBits,
             string endOfLine)
         {
             serialPort = device.CreateSerialPort(port, baudRate, dataBits, parity, stopBits);
             LINE_END = endOfLine;
             serialPort.DataReceived += SerialPortDataReceived;
+        }
+
+        /// <summary>
+        ///     Create a new SerialTextFile and attach the instance to the specfied serial port.
+        /// </summary>
+        /// <param name="serialPort">Serial port object.</param>
+        /// <param name="endOfLine">Text indicating the end of a line of text.</param>
+        public SerialTextFile(ISerialPort serialPort, string endOfLine, bool useSerialEvents = true)
+        {
+            this.serialPort = serialPort;
+            LINE_END = endOfLine;
+
+            if(useSerialEvents)
+            {
+                serialPort.DataReceived += SerialPortDataReceived;
+            }
+            else
+            {
+                while (true)
+                {
+                    ReadDataFromSerialPort();
+                    Thread.Sleep(200);
+                }
+            }
         }
 
         #endregion Constructors
@@ -94,11 +122,11 @@ namespace Meadow.Foundation.Communications
         /// </summary>
         public void Open()
         {
-            Console.WriteLine("SerialTextFile: Open");
+            //Console.WriteLine("SerialTextFile: Open");
 
             if (!serialPort.IsOpen)
             {
-                Console.WriteLine("SerialTextFile: _serialPort.Open");
+                //Console.WriteLine("SerialTextFile: _serialPort.Open");
                 serialPort.Open();
             }
         }
@@ -115,7 +143,7 @@ namespace Meadow.Foundation.Communications
             {
                 serialPort.Close();
             }
-            buffer = "";
+            buffer = string.Empty;
         }
 
         #endregion Methods
@@ -127,53 +155,42 @@ namespace Meadow.Foundation.Communications
         /// </summary>
         private void SerialPortDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            Console.WriteLine("SerialTextFile: SerialPortDataReceived");
-
             if (e.EventType == SerialDataType.Chars)
             {
-                lock (buffer)
+                ReadDataFromSerialPort();
+            }
+        }
+        
+        private void ReadDataFromSerialPort()
+        { 
+            lock (buffer)
+            {
+                int amount = serialPort.Read(staticBuffer, 0, MAXIMUM_BUFFER_SIZE);
+
+                //Console.WriteLine($"Data amount: {amount}");
+
+                if (amount > 0)
                 {
-                    int amount = ((SerialPort) sender).Read(staticBuffer, 0, MAXIMUM_BUFFER_SIZE);
-
-                    Console.WriteLine($"Data amount: {amount}");
-
-                    if (amount > 0)
+                    for (var index = 0; index < amount; index++)
                     {
-                        for (var index = 0; index < amount; index++)
-                        {
-                            buffer += (char) staticBuffer[index];
-                        }
+                        buffer += (char) staticBuffer[index];
                     }
-                    var eolMarkerPosition = buffer.IndexOf(LINE_END);
+                }
+                var eolMarkerPosition = buffer.IndexOf(LINE_END);
 
-                    Console.WriteLine($"eol: {eolMarkerPosition}");
+                while (eolMarkerPosition >= 0)
+                {
+                    var line = buffer.Substring(0, eolMarkerPosition);
+                    buffer = buffer.Substring(eolMarkerPosition + 2);
+                    eolMarkerPosition = buffer.IndexOf(LINE_END);
 
-                    Console.WriteLine($"Buffer: {buffer}");
+                    // Console.WriteLine($"Line: {line}");
 
-                    while (eolMarkerPosition >= 0)
-                    {
-                        var line = buffer.Substring(0, eolMarkerPosition);
-                        buffer = buffer.Substring(eolMarkerPosition + 2);
-                        eolMarkerPosition = buffer.IndexOf(LINE_END);
-
-                        Console.WriteLine($"Line: {line}");
-
-                        if(OnLineReceived != null)
-                        {
-                            Console.WriteLine("fire OnLineReceived");
-                        }
-                        else
-                        {
-                            Console.WriteLine("null sir");
-                        }
-
-                        OnLineReceived?.Invoke(this, line);
-                    }
+                    OnLineReceived?.Invoke(this, line);
                 }
             }
         }
 
         #endregion Interrupt handlers
-
     }
 }

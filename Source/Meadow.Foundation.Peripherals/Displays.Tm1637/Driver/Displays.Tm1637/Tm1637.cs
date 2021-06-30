@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Meadow.Devices;
 using Meadow.Hardware;
 
 namespace Meadow.Foundation.Displays
@@ -10,8 +11,6 @@ namespace Meadow.Foundation.Displays
     /// </summary>
     public sealed class Tm1637
     {
-        #region Properties
-
         /// <summary>
         /// Max segments for a TM1637 controller
         /// </summary>
@@ -74,18 +73,10 @@ namespace Meadow.Foundation.Displays
         }
         private byte _brightness;
 
-        #endregion Properties
-
-        #region Member variables / fields
-
         private readonly IDigitalOutputPort portClock;
         private readonly IBiDirectionalPort portData;
 
         private byte[] displayBuffer = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-
-        #endregion Member variables / fields
-
-        #region Enums
 
         /// <summary>
         /// Internal registers to be send to the TM1637
@@ -109,18 +100,12 @@ namespace Meadow.Foundation.Displays
             DisplayOff = 0b1000_0000,
         }
 
-        #endregion Enums
-
-        #region Constructors
-
-        private Tm1637() { }
-
         /// <summary>
         /// Initialize a TM1637
         /// </summary>
         /// <param name="pinClock">The clock pin</param>
         /// <param name="pinData">The data pin</param>
-        public Tm1637(IIODevice device, IPin pinClock, IPin pinData)
+        public Tm1637(IMeadowDevice device, IPin pinClock, IPin pinData)
         {
             portClock = device.CreateDigitalOutputPort(pinClock);
             portData = device.CreateBiDirectionalPort(pinData);
@@ -318,7 +303,5 @@ namespace Meadow.Foundation.Displays
             };
             Show(clearDisplay);
         }
-
-        #endregion Methods
     }
 }

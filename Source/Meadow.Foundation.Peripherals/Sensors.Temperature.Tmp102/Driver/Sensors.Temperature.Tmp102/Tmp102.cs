@@ -2,227 +2,93 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Meadow.Hardware;
-using Meadow.Peripherals.Sensors.Atmospheric;
-using Meadow.Peripherals.Sensors.Temperature;
+using Meadow.Peripherals.Sensors;
 
 namespace Meadow.Foundation.Sensors.Temperature
 {
+    // TODO: BC: this peripheral hasn't been tested since it got updated to the
+    // new hotness. I don't have one, but I will order one.
     /// <summary>
     /// TMP102 Temperature sensor object.
     /// </summary>    
-    public class Tmp102 :
-        FilterableObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
-        IAtmosphericSensor, ITemperatureSensor
+    public partial class Tmp102 : ByteCommsSensorBase<Units.Temperature>, ITemperatureSensor
     {
-        #region Enums
+        //==== events
+        public event EventHandler<IChangeResult<Units.Temperature>> TemperatureUpdated = delegate { };
 
+        //==== properties
         /// <summary>
-        ///     Indicate the resolution of the sensor.
-        /// </summary>
-        public enum Resolution : byte
-        {
-            /// <summary>
-            ///     Operate in 12-bit mode.
-            /// </summary>
-            Resolution12Bits,
-
-            /// <summary>
-            ///     Operate in 13-bit mode.
-            /// </summary>
-            Resolution13Bits
-        }
-
-        #endregion Enums
-
-        #region Member variables / fields
-
-        /// <summary>
-        ///     TMP102 sensor.
-        /// </summary>
-        private readonly II2cPeripheral tmp102;
-
-        #endregion Member variables / fields
-
-        #region Properties
-
-        /// <summary>
-        ///     Backing variable for the SensorResolution property.
+        /// Backing variable for the SensorResolution property.
         /// </summary>
         private Resolution _sensorResolution;
 
         /// <summary>
         ///     Get / set the resolution of the sensor.
         /// </summary>
-        public Resolution SensorResolution
+        public Resolution SensorResolution 
         {
-            get { return _sensorResolution; }
-            set
+            get => _sensorResolution; 
+            set 
             {
-                var configuration = tmp102.ReadRegisters(0x01, 2);
-                if (value == Resolution.Resolution12Bits)
+                Peripheral.ReadRegister(0x01, ReadBuffer.Span);
+                // TODO: Delete after testing
+                //var configuration = Peripheral.ReadRegisters(0x01, 2);
+                if (value == Resolution.Resolution12Bits) 
                 {
-                    configuration[1] &= 0xef;
+                    ReadBuffer.Span[1] &= 0xef;
+                } else {
+                    ReadBuffer.Span[1] |= 0x10;
                 }
-                else
-                {
-                    configuration[1] |= 0x10;
-                }
-                tmp102.WriteRegisters(0x01, configuration);
+                // @CTACKE: is there a better way here? do we need a WriteRegisters that takes a Span<byte>?
+                Peripheral.WriteRegisters(0x01, ReadBuffer.Span.ToArray());
                 _sensorResolution = value;
             }
         }
 
         /// <summary>
-        /// The temperature, in degrees celsius (°C), from the last reading.
+        /// The temperature from the last reading.
         /// </summary>
-        public float Temperature => Conditions.Temperature;
-
-        /// <summary>
-        /// The AtmosphericConditions from the last reading.
-        /// </summary>
-        public AtmosphericConditions Conditions { get; protected set; } = new AtmosphericConditions();
-
-        // internal thread lock
-        private object _lock = new object();
-        private CancellationTokenSource SamplingTokenSource;
-
-        /// <summary>
-        /// Gets a value indicating whether the analog input port is currently
-        /// sampling the ADC. Call StartSampling() to spin up the sampling process.
-        /// </summary>
-        /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
-        public bool IsSampling { get; protected set; } = false;
-
-        #endregion Properties
-
-        #region Events and delegates
-
-        public event EventHandler<AtmosphericConditionChangeResult> Updated;
-
-        #endregion Events and delegates
-
-        #region Constructors
-
-        /// <summary>
-        ///     Default constructor (private to prevent it being called).
-        /// </summary>
-        private Tmp102()
-        {
-        }
+        public Units.Temperature? Temperature { get; protected set; }
 
         /// <summary>
         ///     Create a new TMP102 object using the default configuration for the sensor.
         /// </summary>
         /// <param name="address">I2C address of the sensor.</param>
         public Tmp102(II2cBus i2cBus, byte address = 0x48)
+            : base(i2cBus, address, readBufferSize: 2, writeBufferSize: 2)
         {
-            tmp102 = new I2cPeripheral(i2cBus, address);
-
-            var configuration = tmp102.ReadRegisters(0x01, 2);
-
-            _sensorResolution = (configuration[1] & 0x10) > 0 ?
+            // TODO: Delete after testing
+            //var configuration = Peripheral.ReadRegisters(0x01, 2);
+            //_sensorResolution = (configuration[1] & 0x10) > 0 ?
+            //                     Resolution.Resolution13Bits : Resolution.Resolution12Bits;
+            Peripheral.ReadRegister(0x01, ReadBuffer.Span);
+            _sensorResolution = (ReadBuffer.Span[1] & 0x10) > 0 ?
                                  Resolution.Resolution13Bits : Resolution.Resolution12Bits;
         }
 
-        #endregion Constructors
-
-        #region Methods
-
         /// <summary>
-        /// Convenience method to get the current sensor readings. For frequent reads, use
-        /// StartSampling() and StopSampling() in conjunction with the SampleBuffer.
+        /// Update the Temperature property.
         /// </summary>
-        public async Task<AtmosphericConditions> Read()
+        protected override Task<Units.Temperature> ReadSensor()
         {
-            Conditions = await Read();
-
-            return Conditions;
-        }
-
-        public void StartUpdating(int standbyDuration = 1000)
-        {
-            // thread safety
-            lock (_lock)
-            {
-                if (IsSampling) return;
-
-                // state muh-cheen
-                IsSampling = true;
-
-                SamplingTokenSource = new CancellationTokenSource();
-                CancellationToken ct = SamplingTokenSource.Token;
-
-                AtmosphericConditions oldConditions;
-                AtmosphericConditionChangeResult result;
-                Task.Factory.StartNew(async () => {
-                    while (true)
-                    {
-                        if (ct.IsCancellationRequested)
-                        {
-                            // do task clean up here
-                            _observers.ForEach(x => x.OnCompleted());
-                            break;
-                        }
-                        // capture history
-                        oldConditions = Conditions;
-
-                        // read
-                        Update(); //syncrhnous for this driver 
-
-                        // build a new result with the old and new conditions
-                        result = new AtmosphericConditionChangeResult(oldConditions, Conditions);
-
-                        // let everyone know
-                        RaiseChangedAndNotify(result);
-
-                        // sleep for the appropriate interval
-                        await Task.Delay(standbyDuration);
-                    }
-                }, SamplingTokenSource.Token);
-            }
-        }
-
-        protected void RaiseChangedAndNotify(AtmosphericConditionChangeResult changeResult)
-        {
-            Updated?.Invoke(this, changeResult);
-            base.NotifyObservers(changeResult);
-        }
-
-        /// <summary>
-        /// Stops sampling the temperature.
-        /// </summary>
-        public void StopUpdating()
-        {
-            lock (_lock)
-            {
-                if (!IsSampling) return;
-
-                SamplingTokenSource?.Cancel();
-
-                // state muh-cheen
-                IsSampling = false;
-            }
-        }
-
-        /// <summary>
-        ///     Update the Temperature property.
-        /// </summary>
-        public void Update()
-        {
-            var temperatureData = tmp102.ReadRegisters(0x00, 2);
+            Peripheral.ReadRegister(0x00, ReadBuffer.Span);
+            // TODO: Delete after testing
+            //var temperatureData = Peripheral.ReadRegisters(0x00, 2);
 
             var sensorReading = 0;
-            if (SensorResolution == Resolution.Resolution12Bits)
-            {
-                sensorReading = (temperatureData[0] << 4) | (temperatureData[1] >> 4);
+            if (SensorResolution == Resolution.Resolution12Bits) {
+                sensorReading = (ReadBuffer.Span[0] << 4) | (ReadBuffer.Span[1] >> 4);
+            } else {
+                sensorReading = (ReadBuffer.Span[0] << 5) | (ReadBuffer.Span[1] >> 3);
             }
-            else
-            {
-                sensorReading = (temperatureData[0] << 5) | (temperatureData[1] >> 3);
-            }
-            Conditions.Temperature = (float) (sensorReading * 0.0625);
+
+            return Task.FromResult(new Units.Temperature((float)(sensorReading * 0.0625), Units.Temperature.UnitType.Celsius));
         }
 
-        #endregion Methods
+        protected void RaiseChangedAndNotify(IChangeResult<Units.Temperature> changeResult)
+        {
+            TemperatureUpdated?.Invoke(this, changeResult);
+            base.RaiseEventsAndNotify(changeResult);
+        }
     }
 }

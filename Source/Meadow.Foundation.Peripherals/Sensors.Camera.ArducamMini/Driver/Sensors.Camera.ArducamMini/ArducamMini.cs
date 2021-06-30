@@ -1,14 +1,13 @@
-﻿using System.Threading;
+﻿using Meadow.Devices;
+using Meadow.Hardware;
 using System;
 using System.IO;
-using Meadow.Hardware;
+using System.Threading;
 
 namespace Meadow.Foundation.Sensors.Camera
 {
     public class ArducamMini
     {
-        #region Member variables / fields
-
         const byte ADDRESS_READ = 0x60;
         const byte ADDRESS_WRITE = 0x61;
 
@@ -36,10 +35,7 @@ namespace Meadow.Foundation.Sensors.Camera
 
         readonly byte Address = 0x30;
 
-        #endregion Member variables / fields
-
         public int DEFAULT_SPEED => 8000; // in khz
-
 
         protected II2cPeripheral i2cDevice;
 
@@ -47,12 +43,7 @@ namespace Meadow.Foundation.Sensors.Camera
 
         protected IDigitalOutputPort chipSelectPort;
 
-
-        #region Constructors 
-
-        private ArducamMini() { }
-
-        public ArducamMini(IIODevice device, ISpiBus spiBus, IPin chipSelectPin, II2cBus i2cBus, byte address = 0x30)
+        public ArducamMini(IMeadowDevice device, ISpiBus spiBus, IPin chipSelectPin, II2cBus i2cBus, byte address = 0x30)
         {
             i2cDevice = new I2cPeripheral(i2cBus, address);
 
@@ -62,10 +53,6 @@ namespace Meadow.Foundation.Sensors.Camera
 
             Initialize();
         }
-
-        #endregion Constructors
-
-        #region Methods
 
         private void Cbi(ref int reg, int bitmask)
         {
@@ -81,7 +68,7 @@ namespace Meadow.Foundation.Sensors.Camera
         {
             // return spiDevice.WriteRead(new byte[] { address, 0 }, 2)[1];
             //return spiDevice.ReadRegister(address);
-            spiDevice.WriteByte(address);
+            spiDevice.Write(address);
             return spiDevice.ReadBytes(1)[0];
         }
 
@@ -210,7 +197,5 @@ namespace Meadow.Foundation.Sensors.Camera
             var temp = ReadSpiRegister(address);
             WriteSpiRegister(address, (byte)(temp & (~bit)));
         }
-
-        #endregion Methods
     }
 }

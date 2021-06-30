@@ -1,19 +1,23 @@
-﻿<Project Sdk="Meadow.Sdk/1.1.0">
+<Project Sdk="Meadow.Sdk/1.1.0">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <PackageIcon>icon.png</PackageIcon>
+    <Authors>Wilderness Labs, Inc</Authors>
+    <TargetFramework>netstandard2.1</TargetFramework>
     <OutputType>Library</OutputType>
     <AssemblyName>Bh1750</AssemblyName>
     <Company>Wilderness Labs, Inc</Company>
     <PackageProjectUrl>http://developer.wildernesslabs.co/Meadow/Meadow.Foundation/</PackageProjectUrl>
     <PackageId>Meadow.Foundation.Sensors.Light.Bh1750</PackageId>
-    <PackageIconUrl>https://github.com/WildernessLabs/Meadow.Foundation/blob/master/Source/icon.png?raw=true</PackageIconUrl>
     <RepositoryUrl>https://github.com/WildernessLabs/Meadow.Foundation</RepositoryUrl>
     <PackageTags>Meadow.Foundation, Light, Bh1750</PackageTags>
-    <Version>0.1.3</Version>
+    <Version>0.1.35</Version>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Description>Driver for Bh1750</Description>
+    <Description>Bh1750 I2C luminance and color light sensor</Description>
+    <RootNamespace>Meadow.Foundation.Sensors.Light
+{</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Meadow.Foundation" Version="0.*" />
+    <None Include="..\..\..\..\icon.png" Pack="true" PackagePath="" />
+    <ProjectReference Include="..\..\..\..\Meadow.Foundation.Core\Meadow.Foundation.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-using Meadow.Hardware;
+﻿using Meadow.Hardware;
 using Meadow.Peripherals.Sensors;
 using Meadow.Peripherals.Switches;
 using System;
@@ -39,11 +39,6 @@ namespace Meadow.Foundation.Sensors.Switches
         #region Constructors
 
         /// <summary>
-        /// Default constructor is private to prevent it being called.
-        /// </summary>
-        private SpdtSwitch() { }
-
-        /// <summary>
         /// Instantiates a new SpdtSwitch object with the center pin connected to the specified digital pin, one pin connected to common/ground and one pin connected to high/3.3V.
         /// </summary>
         /// <param name="device"></param>
@@ -52,7 +47,7 @@ namespace Meadow.Foundation.Sensors.Switches
         /// <param name="resistorMode"></param>
         /// <param name="debounceDuration"></param>
         /// <param name="glitchFilterCycleCount"></param>
-        public SpdtSwitch(IIODevice device, IPin pin, InterruptMode interruptMode, ResistorMode resistorMode, int debounceDuration = 20, int glitchFilterCycleCount = 0) :
+        public SpdtSwitch(IDigitalInputController device, IPin pin, InterruptMode interruptMode, ResistorMode resistorMode, int debounceDuration = 20, int glitchFilterCycleCount = 0) :
             this (device.CreateDigitalInputPort(pin, interruptMode, resistorMode, debounceDuration, glitchFilterCycleCount)) {}
 
         /// <summary>
@@ -74,7 +69,7 @@ namespace Meadow.Foundation.Sensors.Switches
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        protected void DigitalInChanged(object sender, DigitalInputPortEventArgs e)
+        protected void DigitalInChanged(object sender, DigitalPortResult e)
         {
             IsOn = DigitalIn.State;
         }

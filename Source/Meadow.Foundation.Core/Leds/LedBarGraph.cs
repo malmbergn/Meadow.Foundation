@@ -1,4 +1,5 @@
-﻿using Meadow.Hardware;
+﻿using Meadow.Devices;
+using Meadow.Hardware;
 using System;
 
 namespace Meadow.Foundation.Leds
@@ -8,37 +9,34 @@ namespace Meadow.Foundation.Leds
     /// </summary>
     public class LedBarGraph
     {
+        protected Led[] leds;
+
         /// <summary>
         /// The number of the LEDs in the bar graph
         /// </summary>
-        public int Count => _isPwm ? _pwmLeds.Length : _leds.Length;
+        public int Count => leds.Length;
 
         /// <summary>
         /// A value between 0 and 1 that controls the number of LEDs that are activated
         /// </summary>
+        float percentage;
         public float Percentage
         {
-            set => SetPercentage(value);
+            get => percentage;
+            set => SetPercentage(percentage = value);
         }
-
-        protected PwmLed[] _pwmLeds;
-        protected Led[] _leds;
-
-        protected bool _isPwm = false;
 
         /// <summary>
         /// Create an LedBarGraph instance from an array of IPins
         /// </summary>
-        public LedBarGraph(IIODevice device, IPin[] pins)
+        public LedBarGraph(IDigitalOutputController device, IPin[] pins)
         {
-            _leds = new Led[pins.Length];
+            leds = new Led[pins.Length];
 
             for (int i = 0; i < pins.Length; i++)
             {
-                _leds[i] = new Led(device, pins[i]);
+                leds[i] = new Led(device, pins[i]);
             }
-
-            _isPwm = false;
         }
 
         /// <summary>
@@ -46,29 +44,12 @@ namespace Meadow.Foundation.Leds
         /// </summary>
         public LedBarGraph(IDigitalOutputPort[] ports)
         {
-            _leds = new Led[ports.Length];
+            leds = new Led[ports.Length];
 
             for (int i = 0; i < ports.Length; i++)
             {
-                _leds[i] = new Led(ports[i]);
+                leds[i] = new Led(ports[i]);
             }
-
-            _isPwm = false;
-        }
-
-        /// <summary>
-        /// Create an LedBarGraph instance from an array of IPwnPin and a forwardVoltage for all LEDs in the bar graph
-        /// </summary>
-        public LedBarGraph(IIODevice device, IPin[] pins, float forwardVoltage)
-        {
-            _pwmLeds = new PwmLed[pins.Length];
-
-            for (int i = 0; i < pins.Length; i++)
-            {
-                _pwmLeds[i] = null; //ToDo - needs device.CreatePwmPort()     
-                   // new PwmLed(device, pins[i], forwardVoltage);
-            }
-            _isPwm = true;
         }
 
         /// <summary>
@@ -78,42 +59,29 @@ namespace Meadow.Foundation.Leds
         /// <param name="isOn"></param>
         public void SetLed(int index, bool isOn)
         {
-            if(_isPwm)
+            if (index >= Count)
             {
-                _pwmLeds[index].SetBrightness(isOn ? 1 : 0);
+                throw new ArgumentOutOfRangeException();
             }
-            else
-            {
-                _leds[index].IsOn = isOn;
-            }
-        }
 
-        /// <summary>
-        /// Set the brightness of an individual LED when using PWM
-        /// </summary>
-        /// <param name="index"></param>
-        /// <param name="brightness"></param>
-        public void SetLedBrightness(int index, float brightness)
-        {
-            if (_isPwm == false)
-                throw new InvalidOperationException();
-
-            _pwmLeds[index].SetBrightness(brightness);
+            leds[index].Stop();
+            leds[index].IsOn = isOn;
         }
 
         /// <summary>
         /// Set the percentage of LEDs that are on starting from index 0
         /// </summary>
-        /// <param name="percentage"></param>
-        void SetPercentage(float percentage) //assume 0 - 1
+        /// <param name="percentage">Percentage (Range from 0 - 1)</param>
+        void SetPercentage(float percentage)
         {
             if (percentage < 0 || percentage > 1)
+            {
                 throw new ArgumentOutOfRangeException();
+            }
 
             float value = percentage * Count;
             
-            if (_isPwm == false)
-                value += 0.5f;
+            value += 0.5f;
 
             for (int i = 1; i <= Count; i++)
             {
@@ -121,15 +89,108 @@ namespace Meadow.Foundation.Leds
                 {
                     SetLed(i - 1, true);
                 }
-                else if (_isPwm && i <= value + 1)
-                {
-                    SetLedBrightness(i - 1, value + 1 - i);                    
-                }
                 else
                 {
                     SetLed(i - 1, false);
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns the index of the last LED turned on
+        /// </summary>
+        /// <returns></returns>
+        public int GetTopLedForPercentage() 
+        {
+            return (int) Math.Max(0, percentage * Count - 0.5);
+        }
+
+        /// <summary>
+        /// Blink animation that turns the LED bar graph on and off based on the OnDuration and offDuration values in ms
+        /// </summary>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        public void StartBlink(int onDuration = 200, int offDuration = 200)
+        {
+            foreach (var led in leds)
+            {
+                led.StartBlink(onDuration, offDuration);
+            }
+        }
+
+        /// <summary>
+        /// Starts a blink animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        public void SetLedBlink(int index, int onDuration = 200, int offDuration = 200)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            leds[index].StartBlink(onDuration, offDuration);
+        }
+
+        /// <summary>
+        /// Stops the LED bar graph when its blinking and/or turns it off.
+        /// </summary>
+        public void Stop()
+        {
+            foreach (var led in leds)
+            {
+                led.Stop();
+            }
+        }
+
+        /// <summary>
+        /// Set the LED state
+        /// </summary>
+        /// <param name="index">index of the LED</param>
+        /// <param name="isOn"></param>
+        [Obsolete("Method deprecated: use SetLed(int index, bool isOn)")]
+        public void SetLed(uint index, bool isOn)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            leds[index].Stop();
+            leds[index].IsOn = isOn;
+        }
+
+        /// <summary>
+        /// Blink animation that turns the LED bar graph on and off based on the OnDuration and offDuration values in ms
+        /// </summary>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        [Obsolete("Method deprecated: use StartBlink(int onDuration, int offDuration)")]
+        public void StartBlink(uint onDuration, uint offDuration)
+        {
+            foreach (var led in leds)
+            {
+                led.StartBlink(onDuration, offDuration);
+            }
+        }
+
+        /// <summary>
+        /// Starts a blink animation on an individual LED
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        [Obsolete("Method deprecated: use SetLedBlink(int index, int onDuration, int offDuration)")]
+        public void SetLedBlink(uint index, uint onDuration, uint offDuration)
+        {
+            if (index >= Count)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
+
+            leds[index].StartBlink(onDuration, offDuration);
         }
     }
 }

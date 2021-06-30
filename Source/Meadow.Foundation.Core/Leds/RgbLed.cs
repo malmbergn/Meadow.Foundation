@@ -3,28 +3,66 @@ using System.Threading;
 using System.Threading.Tasks;
 using Meadow.Peripherals.Leds;
 using static Meadow.Peripherals.Leds.IRgbLed;
+using System;
+using Meadow.Devices;
 
 namespace Meadow.Foundation.Leds
 {
+    /// <summary>
+    /// Represents an RGB LED
+    /// </summary>
     public partial class RgbLed : IRgbLed
     {
-        protected Task _animationTask = null;
-        protected CancellationTokenSource _cancellationTokenSource = null;
+        protected Task? animationTask;
+        protected CancellationTokenSource? cancellationTokenSource;
 
-        public Colors Color { get; protected set; }
+        /// <summary>
+        /// Get the color the LED has been set to.
+        /// </summary>
+        public Colors Color { get; protected set; } = Colors.White;
 
-        public IDigitalOutputPort RedPort { get; set; }
+        /// <summary>
+        /// Get the red LED port
+        /// </summary>
+        public IDigitalOutputPort RedPort { get; protected set; }
+        /// <summary>
+        /// Get the green LED port
+        /// </summary>
+        public IDigitalOutputPort GreenPort { get; protected set; }
+        /// <summary>
+        /// Get the blue LED port
+        /// </summary>
+        public IDigitalOutputPort BluePort { get; protected set; }
 
-        public IDigitalOutputPort GreenPort { get; set; }
-
-        public IDigitalOutputPort BluePort { get; set; }
-
+        /// <summary>
+        /// Is the LED using a common cathode
+        /// </summary>
         public CommonType Common { get; protected set; }
 
-        private RgbLed () { }
+        /// <summary>
+        /// Turns on LED with current color or turns it off
+        /// </summary>
+        public bool IsOn
+        {
+            get => isOn;
+            set
+            {
+                SetColor(value? Color : Colors.Black);
+                isOn = value;
+            }
+        }
+        protected bool isOn;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:Meadow.Foundation.Leds.RgbLed"/> class.
+        /// </summary>
+        /// <param name="device">IO Device</param>
+        /// <param name="redPin">Red Pin</param>
+        /// <param name="greenPin">Green Pin</param>
+        /// <param name="bluePin">Blue Pin</param>
+        /// <param name="commonType">Is Common Cathode</param>
         public RgbLed(
-            IIODevice device, 
+            IDigitalOutputController device, 
             IPin redPin, 
             IPin greenPin, 
             IPin bluePin, 
@@ -35,6 +73,13 @@ namespace Meadow.Foundation.Leds
                 device.CreateDigitalOutputPort(bluePin),
                 commonType) { }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:Meadow.Foundation.Leds.RgbLed"/> class.
+        /// </summary>
+        /// <param name="redPort">Red Port</param>
+        /// <param name="greenPort">Green Port</param>
+        /// <param name="bluePort">Blue Port</param>
+        /// <param name="commonType">Is Common Cathode</param>
         public RgbLed(
             IDigitalOutputPort redPort, 
             IDigitalOutputPort greenPort,
@@ -45,28 +90,25 @@ namespace Meadow.Foundation.Leds
             GreenPort = greenPort;
             BluePort = bluePort;
             Common = commonType;
-
-            _cancellationTokenSource = new CancellationTokenSource();
         }
 
+        /// <summary>
+        /// Stops any running animations.
+        /// </summary>
         public void Stop()
         {
-            _cancellationTokenSource.Cancel();
+            cancellationTokenSource?.Cancel();
+            IsOn = false;
         }
 
-        public void TurnOff()
-        {
-            _cancellationTokenSource.Cancel();
-            SetColor(Colors.Black);
-        }
-
-        public void TurnOn()
-        {
-            SetColor(Colors.White);
-        }
-
+        /// <summary>
+        /// Sets the current color of the LED.
+        /// </summary>
+        /// <param name="color"></param>
         public void SetColor(Colors color)
         {
+            Color = color;
+
             bool onState = (Common == CommonType.CommonCathode);
 
             switch (color)
@@ -114,33 +156,57 @@ namespace Meadow.Foundation.Leds
             }
         }
 
-        public void StartBlink(Colors color, uint onDuration = 200, uint offDuration = 200)
+        /// <summary>
+        /// Starts the blink animation.
+        /// </summary>
+        /// <param name="color"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        public void StartBlink(Colors color, int onDuration = 200, int offDuration = 200)
         {
-            if (!_cancellationTokenSource.Token.IsCancellationRequested)
-                _cancellationTokenSource.Cancel();
+            Stop();
 
-            SetColor(Colors.Black);
-
-            _animationTask = new Task(async () =>
+            animationTask = new Task(async () =>
             {
-                _cancellationTokenSource = new CancellationTokenSource();
-                await StartBlinkAsync(color, onDuration, offDuration, _cancellationTokenSource.Token);
+                cancellationTokenSource = new CancellationTokenSource();
+                await StartBlinkAsync(color, onDuration, offDuration, cancellationTokenSource.Token);
             });
-            _animationTask.Start();
+            animationTask.Start();
         }
-
-        protected async Task StartBlinkAsync(Colors color, uint onDuration, uint offDuration, CancellationToken cancellationToken)
+        
+        protected async Task StartBlinkAsync(Colors color, int onDuration, int offDuration, CancellationToken cancellationToken)
         {
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested)
+                {
                     break;
+                }
 
                 SetColor(color);
                 await Task.Delay((int)onDuration);
                 SetColor(Colors.Black);
                 await Task.Delay((int)offDuration);
             }
+        }
+
+        /// <summary>
+        /// Starts the blink animation.
+        /// </summary>
+        /// <param name="color"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        [Obsolete("Method deprecated: use StartBlink(Colors color, int onDuration, int offDuration)")]
+        public void StartBlink(Colors color, uint onDuration, uint offDuration)
+        {
+            Stop();
+
+            animationTask = new Task(async () =>
+            {
+                cancellationTokenSource = new CancellationTokenSource();
+                await StartBlinkAsync(color, (int)onDuration, (int)offDuration, cancellationTokenSource.Token);
+            });
+            animationTask.Start();
         }
     }
 }

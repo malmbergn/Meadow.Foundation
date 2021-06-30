@@ -3,6 +3,7 @@ using System.Threading;
 using Meadow.Hardware;
 using System.Threading.Tasks;
 using static Meadow.Peripherals.Leds.IRgbLed;
+using Meadow.Devices;
 
 namespace Meadow.Foundation.Leds
 {
@@ -15,54 +16,40 @@ namespace Meadow.Foundation.Leds
     /// </summary>
     public class RgbPwmLed
     {
-        readonly float MAX_FORWARD_VOLTAGE = 3.3f;
         readonly int DEFAULT_FREQUENCY = 200; //hz
+        readonly float MAX_FORWARD_VOLTAGE = 3.3f;
         readonly float DEFAULT_DUTY_CYCLE = 0f;
+
+        protected Task? animationTask = null;
+        protected CancellationTokenSource? cancellationTokenSource = null;
 
         protected double maxRedDutyCycle = 1;
         protected double maxGreenDutyCycle = 1;
         protected double maxBlueDutyCycle = 1;
 
         /// <summary>
-        /// Enables / disables the LED but toggling the PWM
-        ///
-        /// TODO: What's the use case for enabling? maybe this
-        /// should just be State, which would return whether or
-        /// not it's running.
+        /// Turns on LED with current color or turns it off
         /// </summary>
-        public bool IsEnabled
+        public bool IsOn
         {
-            get => isEnabled;
+            get => isOn;
             set
-            {
-                if (value)
-                {
-                    if (BluePwm != null) {
-                        if (!BluePwm.State) { BluePwm.Start(); }
-                    }
-                    if (GreenPwm != null) {
-                        if (!GreenPwm.State) { GreenPwm.Start(); }
-                    }
-                    if (RedPwm != null) {
-                        if (!RedPwm.State) { RedPwm.Start(); }
-                    }
-                }
-                else
-                {
-                    BluePwm?.Stop();
-                    RedPwm?.Stop();
-                    GreenPwm?.Stop();
-                }
-                isEnabled = value;
+            {                
+                SetColor(Color, value? 1 : 0);
+                isOn = value;
             }
         }
-        protected bool isEnabled = false;
+        protected bool isOn;
 
         /// <summary>
-        /// Is the LED using a common cathode
+        /// The color the LED has been set to.
         /// </summary>
-        //public bool IsCommonCathode { get; protected set; }
-        public CommonType Common { get; protected set; }
+        public Color Color { get; protected set; } = Color.White;
+
+        /// <summary>
+        /// The brightness value assigned to the LED relative to Color
+        /// </summary>
+        public float Brightness { get; protected set; } = 1f;
 
         /// <summary>
         /// Get the red LED port
@@ -78,6 +65,11 @@ namespace Meadow.Foundation.Leds
         public IPwmPort GreenPwm { get; protected set; }
 
         /// <summary>
+        /// Gets the common type
+        /// </summary>        
+        public CommonType Common { get; protected set; }
+
+        /// <summary>
         /// Get the red LED forward voltage
         /// </summary>
         public float RedForwardVoltage { get; protected set; }
@@ -88,15 +80,7 @@ namespace Meadow.Foundation.Leds
         /// <summary>
         /// Get the blue LED forward voltage
         /// </summary>
-        public float BlueForwardVoltage { get; protected set; }
-
-        /// <summary>
-        /// The color the LED has been set to.
-        /// </summary>
-        public Color Color { get; private set; } = Color.Black;
-
-        protected Task _animationTask = null;
-        protected CancellationTokenSource cancellationTokenSource = null;
+        public float BlueForwardVoltage { get; protected set; }        
 
         /// <summary>
         /// Instantiates a RgbPwmLed object with the especified IO device, connected
@@ -110,7 +94,7 @@ namespace Meadow.Foundation.Leds
         /// <param name="greenLedForwardVoltage"></param>
         /// <param name="blueLedForwardVoltage"></param>
         /// <param name="isCommonCathode"></param>
-        public RgbPwmLed(IIODevice device,
+        public RgbPwmLed(IPwmOutputController device,
             IPin redPwmPin, IPin greenPwmPin, IPin bluePwmPin,
             float redLedForwardVoltage = TypicalForwardVoltage.ResistorLimited,
             float greenLedForwardVoltage = TypicalForwardVoltage.ResistorLimited,
@@ -159,14 +143,12 @@ namespace Meadow.Foundation.Leds
             }
             BlueForwardVoltage = blueLedForwardVoltage;
 
-            this.Common = commonType;
+            Common = commonType;
 
             // calculate and set maximum PWM duty cycles
             maxRedDutyCycle = Helpers.CalculateMaximumDutyCycle(RedForwardVoltage);
             maxGreenDutyCycle = Helpers.CalculateMaximumDutyCycle(GreenForwardVoltage);
             maxBlueDutyCycle = Helpers.CalculateMaximumDutyCycle(BlueForwardVoltage);            
-
-            cancellationTokenSource = new CancellationTokenSource();
 
             RedPwm = redPwm;
             GreenPwm = greenPwm;
@@ -175,8 +157,6 @@ namespace Meadow.Foundation.Leds
             ResetPwms();
         }
 
-        private RgbPwmLed() { }
-
         /// <summary>
         /// Resets all PWM ports
         /// </summary>
@@ -184,31 +164,31 @@ namespace Meadow.Foundation.Leds
         {
             RedPwm.Frequency = GreenPwm.Frequency = BluePwm.Frequency = DEFAULT_FREQUENCY;
             RedPwm.DutyCycle = GreenPwm.DutyCycle = BluePwm.DutyCycle = DEFAULT_DUTY_CYCLE;
-            // invertthe PWM signal if it common anode
+            // invert the PWM signal if it common anode
             RedPwm.Inverted = GreenPwm.Inverted = BluePwm.Inverted
-                = (this.Common == CommonType.CommonAnode);
+                = (Common == CommonType.CommonAnode);
+
+            RedPwm.Start(); GreenPwm.Start(); BluePwm.Start();
         }
 
         /// <summary>
         /// Sets the current color of the LED.
         /// </summary>
-        /// <param name="ledColor"></param>
-        public void SetColor(Color ledColor)
+        /// <param name="color"></param>
+        /// <param name="brightness"></param>
+        public void SetColor(Color color, float brightness = 1)
         {
-            Color = ledColor;
+            if(color == Color && brightness == Brightness)
+            {
+                return;
+            }
 
-            //IsEnabled = false;
-            var red   = (float)(Color.R * maxRedDutyCycle);
-            var green = (float)(Color.G * maxGreenDutyCycle);
-            var blue  = (float)(Color.B * maxBlueDutyCycle);
+            Color = color;
+            Brightness = brightness;
 
-            // set the color based on the RGB values
-            RedPwm.DutyCycle = (float)(Color.R * maxRedDutyCycle);
-            GreenPwm.DutyCycle = (float)(Color.G * maxGreenDutyCycle);
-            BluePwm.DutyCycle = (float)(Color.B * maxBlueDutyCycle);
-
-            
-            IsEnabled = true;
+            RedPwm.DutyCycle = (float)(Color.R * maxRedDutyCycle * brightness);
+            GreenPwm.DutyCycle = (float)(Color.G * maxGreenDutyCycle * brightness);
+            BluePwm.DutyCycle = (float)(Color.B * maxBlueDutyCycle * brightness);
         }
 
         /// <summary>
@@ -216,8 +196,8 @@ namespace Meadow.Foundation.Leds
         /// </summary>
         public void Stop()
         {
-            cancellationTokenSource.Cancel();
-            IsEnabled = false;
+            cancellationTokenSource?.Cancel();
+            IsOn = false;
         }
 
         /// <summary>
@@ -228,35 +208,41 @@ namespace Meadow.Foundation.Leds
         /// <param name="offDuration"></param>
         /// <param name="highBrightness"></param>
         /// <param name="lowBrightness"></param>
-        public void StartBlink(Color color, uint onDuration = 200, uint offDuration = 200, float highBrightness = 1f, float lowBrightness = 0f)
+        public void StartBlink(Color color, int onDuration = 200, int offDuration = 200, float highBrightness = 1f, float lowBrightness = 0f)
         {
             if (highBrightness > 1 || highBrightness <= 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(highBrightness), "onBrightness must be > 0 and <= 1");
+            }
             if (lowBrightness >= 1 || lowBrightness < 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(lowBrightness), "lowBrightness must be >= 0 and < 1");
+            }
             if (lowBrightness >= highBrightness)
+            {
                 throw new Exception("offBrightness must be less than onBrightness");
+            }
 
             Color = color;
 
-            if (!cancellationTokenSource.Token.IsCancellationRequested)
-                cancellationTokenSource.Cancel();
-
             Stop();
 
-            _animationTask = new Task(async () =>
+            animationTask = new Task(async () =>
             {
                 cancellationTokenSource = new CancellationTokenSource();
                 await StartBlinkAsync(color, onDuration, offDuration, highBrightness, lowBrightness, cancellationTokenSource.Token);
             });
-            _animationTask.Start();
+            animationTask.Start();
         }
-        protected async Task StartBlinkAsync(Color color, uint onDuration, uint offDuration, float highBrightness, float lowBrightness, CancellationToken cancellationToken)
+        
+        protected async Task StartBlinkAsync(Color color, int onDuration, int offDuration, float highBrightness, float lowBrightness, CancellationToken cancellationToken)
         {
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested)
+                {
                     break;
+                }
 
                 SetColor(color, highBrightness);
                 await Task.Delay((int)onDuration);
@@ -272,30 +258,34 @@ namespace Meadow.Foundation.Leds
         /// <param name="pulseDuration"></param>
         /// <param name="highBrightness"></param>
         /// <param name="lowBrightness"></param>
-        public void StartPulse(Color color, uint pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F)
+        public void StartPulse(Color color, int pulseDuration = 600, float highBrightness = 1, float lowBrightness = 0.15F)
         {
             if (highBrightness > 1 || highBrightness <= 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(highBrightness), "onBrightness must be > 0 and <= 1");
+            }
             if (lowBrightness >= 1 || lowBrightness < 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(lowBrightness), "lowBrightness must be >= 0 and < 1");
+            }
             if (lowBrightness >= highBrightness)
+            {
                 throw new Exception("offBrightness must be less than onBrightness");
+            }
 
             Color = color;
 
-            if (!cancellationTokenSource.Token.IsCancellationRequested)
-                cancellationTokenSource.Cancel();
-
             Stop();
 
-            _animationTask = new Task(async () =>
+            animationTask = new Task(async () =>
             {
                 cancellationTokenSource = new CancellationTokenSource();
                 await StartPulseAsync(color, pulseDuration, highBrightness, lowBrightness, cancellationTokenSource.Token);
             });
-            _animationTask.Start();
+            animationTask.Start();
         }
-        protected async Task StartPulseAsync(Color color, uint pulseDuration, float highBrightness, float lowBrightness, CancellationToken cancellationToken)
+        
+        protected async Task StartPulseAsync(Color color, int pulseDuration, float highBrightness, float lowBrightness, CancellationToken cancellationToken)
         {
             float brightness = lowBrightness;
             bool ascending = true;
@@ -308,20 +298,30 @@ namespace Meadow.Foundation.Leds
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested)
+                {
                     break;
+                }
 
                 if (brightness <= lowBrightness)
+                {
                     ascending = true;
+                }
                 else if (Math.Abs(brightness - highBrightness) < 0.001)
+                {
                     ascending = false;
+                }
 
                 brightness += (ascending) ? changeUp : changeDown;
 
                 if (brightness < 0)
+                {
                     brightness = 0;
+                }
                 else
                 if (brightness > 1)
+                {
                     brightness = 1;
+                }
 
                 SetColor(color, brightness);
 
@@ -330,18 +330,76 @@ namespace Meadow.Foundation.Leds
                 await Task.Delay(intervalTime);
             }
         }
-        protected void SetColor(Color color, float brightness)
+
+        /// <summary>
+        /// Start the Blink animation which sets the brightness of the LED alternating between a low and high brightness setting, using the durations provided.
+        /// </summary>
+        /// <param name="color"></param>
+        /// <param name="onDuration"></param>
+        /// <param name="offDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        [Obsolete("Method deprecated: use StartBlink(Color color, int onDuration, int offDuration, float highBrightness, float lowBrightness)")]
+        public void StartBlink(Color color, uint onDuration, uint offDuration, float highBrightness, float lowBrightness)
         {
-            //IsEnabled = false;
-            var red   = (float)(Color.R * maxRedDutyCycle);
-            var green = (float)(Color.G * maxGreenDutyCycle);
-            var blue  = (float)(Color.B * maxBlueDutyCycle);
+            if (highBrightness > 1 || highBrightness <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(highBrightness), "onBrightness must be > 0 and <= 1");
+            }
+            if (lowBrightness >= 1 || lowBrightness < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lowBrightness), "lowBrightness must be >= 0 and < 1");
+            }
+            if (lowBrightness >= highBrightness)
+            {
+                throw new Exception("offBrightness must be less than onBrightness");
+            }
 
-            RedPwm.DutyCycle = (float)(color.R * brightness);
-            GreenPwm.DutyCycle = (float)(color.G * brightness);
-            BluePwm.DutyCycle = (float)(color.B * brightness);
+            Color = color;
 
-            IsEnabled = true;
+            Stop();
+
+            animationTask = new Task(async () =>
+            {
+                cancellationTokenSource = new CancellationTokenSource();
+                await StartBlinkAsync(color, (int)onDuration, (int)offDuration, highBrightness, lowBrightness, cancellationTokenSource.Token);
+            });
+            animationTask.Start();
+        }
+
+        /// <summary>
+        /// Start the Pulse animation which gradually alternates the brightness of the LED between a low and high brightness setting, using the durations provided.
+        /// </summary>
+        /// <param name="color"></param>
+        /// <param name="pulseDuration"></param>
+        /// <param name="highBrightness"></param>
+        /// <param name="lowBrightness"></param>
+        [Obsolete("Method deprecated: use StartPulse(Color color, int pulseDuration, float highBrightness, float lowBrightness)")]
+        public void StartPulse(Color color, uint pulseDuration, float highBrightness, float lowBrightness)
+        {
+            if (highBrightness > 1 || highBrightness <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(highBrightness), "onBrightness must be > 0 and <= 1");
+            }
+            if (lowBrightness >= 1 || lowBrightness < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lowBrightness), "lowBrightness must be >= 0 and < 1");
+            }
+            if (lowBrightness >= highBrightness)
+            {
+                throw new Exception("offBrightness must be less than onBrightness");
+            }
+
+            Color = color;
+
+            Stop();
+
+            animationTask = new Task(async () =>
+            {
+                cancellationTokenSource = new CancellationTokenSource();
+                await StartPulseAsync(color, (int) pulseDuration, highBrightness, lowBrightness, cancellationTokenSource.Token);
+            });
+            animationTask.Start();
         }
     }
 }

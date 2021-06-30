@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-using Meadow;
+﻿using Meadow;
 using Meadow.Devices;
 using Meadow.Foundation.Leds;
+using System;
+using System.Collections.Generic;
+using System.Threading;
 
 namespace Leds.Led_Sample
 {
@@ -13,7 +13,12 @@ namespace Leds.Led_Sample
 
         public MeadowApp()
         {
-            Console.WriteLine("Initializing...");
+            var onRgbLed = new RgbLed(
+                device: Device,
+                redPin: Device.Pins.OnboardLedRed,
+                greenPin: Device.Pins.OnboardLedGreen,
+                bluePin: Device.Pins.OnboardLedBlue);
+            onRgbLed.SetColor(RgbLed.Colors.Red);
 
             leds = new List<Led>
             {
@@ -35,6 +40,8 @@ namespace Leds.Led_Sample
                 new Led(Device.CreateDigitalOutputPort(Device.Pins.D15, false))
             };
 
+            onRgbLed.SetColor(RgbLed.Colors.Green);
+
             TestLeds();
         }
 
@@ -44,33 +51,33 @@ namespace Leds.Led_Sample
 
             while (true)
             {
-                Console.WriteLine("Turning on each led every 1 second");
+                Console.WriteLine("Turning on each led every 100ms");
                 foreach (var led in leds)
                 {
                     led.IsOn = true;
-                    Thread.Sleep(1000);
+                    Thread.Sleep(100);
                 }
 
-                Console.WriteLine("Turning off each led every 1 second");
+                Console.WriteLine("Turning off each led every 100ms");
                 foreach (var led in leds)
                 {
                     led.IsOn = false;
-                    Thread.Sleep(1000);
+                    Thread.Sleep(100);
                 }
 
-                Console.WriteLine("Turning on and off each led for 1 second");
+                Console.WriteLine("Turning on and off each led for 100ms");
                 foreach (var led in leds)
                 {
                     led.IsOn = true;
-                    Thread.Sleep(1000);
+                    Thread.Sleep(100);
                     led.IsOn = false;
                 }
 
-                Console.WriteLine("Blinking the LED for a bit.");
+                Console.WriteLine("Blinking the LEDs for a second each");
                 foreach (var led in leds)
                 {
                     led.StartBlink();
-                    Thread.Sleep(3000);
+                    Thread.Sleep(1000);
                     led.Stop();
                 }
             }

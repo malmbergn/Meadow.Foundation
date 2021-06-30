@@ -1,6 +1,8 @@
-﻿using System;
-namespace Meadow.Foundation.Leds
+﻿namespace Meadow.Foundation.Leds
 {
+    /// <summary>
+    /// Possible colors on RgbLed
+    /// </summary>
     public partial class RgbLed
     {
         public enum Colors
@@ -15,6 +17,5 @@ namespace Meadow.Foundation.Leds
             Black,
             count
         }
-
     }
 }

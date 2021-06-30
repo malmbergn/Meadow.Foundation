@@ -25,7 +25,7 @@ namespace Meadow.Foundation.Sensors.Switches
         /// <summary>
         /// Returns the switch array.
         /// </summary>
-        public ISwitch[] Switches = null;
+        public ISwitch[] Switches { get; }
 
         /// <summary>
         /// Raised when one of the switches is switched on or off.
@@ -37,11 +37,6 @@ namespace Meadow.Foundation.Sensors.Switches
         #region Constructors
 
         /// <summary>
-        /// Default constructor is private to prevent it being called.
-        /// </summary>
-        private DipSwitch() { }
-
-        /// <summary>
         /// Creates a new DipSwitch connected to the specified switchPins, with the InterruptMode and ResisterMode specified by the type parameters.
         /// </summary>
         /// <param name="device"></param>
@@ -50,7 +45,7 @@ namespace Meadow.Foundation.Sensors.Switches
         /// <param name="resistorMode"></param>
         /// <param name="debounceDuration"></param>
         /// <param name="glitchFilterCycleCount"></param>
-        public DipSwitch(IIODevice device, IPin[] switchPins, InterruptMode interruptMode, ResistorMode resistorMode, int debounceDuration = 20, int glitchFilterCycleCount = 0)
+        public DipSwitch(IDigitalInputController device, IPin[] switchPins, InterruptMode interruptMode, ResistorMode resistorMode, int debounceDuration = 20, int glitchFilterCycleCount = 0)
         {
             Switches = new ISwitch[switchPins.Length];
 
