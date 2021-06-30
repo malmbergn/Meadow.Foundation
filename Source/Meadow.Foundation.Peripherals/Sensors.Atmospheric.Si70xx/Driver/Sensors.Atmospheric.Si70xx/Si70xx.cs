@@ -2,8 +2,10 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Meadow.Hardware;
-using Meadow.Peripherals.Sensors.Atmospheric;
-using Meadow.Peripherals.Sensors.Temperature;
+using Meadow.Peripherals.Sensors;
+using Meadow.Units;
+using HU = Meadow.Units.RelativeHumidity.UnitType;
+using TU = Meadow.Units.Temperature.UnitType;
 
 namespace Meadow.Foundation.Sensors.Atmospheric
 {
@@ -11,35 +13,26 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     /// Provide access to the Si70xx series (Si7020, Si7021, and Si7030)
     /// temperature and humidity sensors.
     /// </summary>
-    public class Si70xx :
-        FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>,
-        IAtmosphericSensor, ITemperatureSensor, IHumiditySensor
+    public partial class Si70xx :
+        ByteCommsSensorBase<(Units.Temperature? Temperature, RelativeHumidity? Humidity)>,
+        ITemperatureSensor, IHumiditySensor
     {
-        public event EventHandler<AtmosphericConditionChangeResult> Updated;
-
         /// <summary>
-        /// Gets a value indicating whether the sensor is currently in a sampling
-        /// loop. Call StartSampling() to spin up the sampling process.
         /// </summary>
-        /// <value><c>true</c> if sampling; otherwise, <c>false</c>.</value>
-        public bool IsSampling { get; protected set; } = false;
+        public event EventHandler<IChangeResult<Units.Temperature>> TemperatureUpdated = delegate { };
+        public event EventHandler<IChangeResult<RelativeHumidity>> HumidityUpdated = delegate { };
 
         public int DEFAULT_SPEED => 400;
 
         /// <summary>
-        /// The AtmosphericConditions from the last reading.
+        /// The temperature, from the last reading.
         /// </summary>
-        public AtmosphericConditions Conditions { get; protected set; } = new AtmosphericConditions();
-
-        /// <summary>
-        /// The temperature, in degrees celsius (°C), from the last reading.
-        /// </summary>
-        public float Temperature => Conditions.Temperature.Value;
+        public Units.Temperature? Temperature => Conditions.Temperature;
 
         /// <summary>
         /// The humidity, in percent relative humidity, from the last reading..
         /// </summary>
-        public float Humidity => Conditions.Humidity.Value;
+        public RelativeHumidity? Humidity => Conditions.Humidity;
 
         /// <summary>
         ///     Serial number of the device.
@@ -57,235 +50,118 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public byte FirmwareRevision { get; private set; }
 
         /// <summary>
-        ///     SI7021 is an I2C device.
-        /// </summary>
-        protected readonly II2cPeripheral si7021;
-
-        // internal thread lock
-        private object _lock = new object();
-        private CancellationTokenSource SamplingTokenSource;
-
-        private const byte TEMPERATURE_MEASURE_NOHOLD = 0xF3;
-        private const byte HUMDITY_MEASURE_NOHOLD = 0xF5;
-        private const byte TEMPERATURE_MEASURE_HOLD = 0xE3;
-        private const byte HUMDITY_MEASURE_HOLD = 0xE5;
-        private const byte TEMPERATURE_MEASURE_PREVIOUS = 0xE0;
-
-        private const byte WRITE_USER_REGISTER = 0xE6;
-        private const byte READ_USER_REGISTER = 0xE7;
-        private const byte READ_HEATER_REGISTER = 0x11;
-        private const byte WRITE_HEATER_REGISTER = 0x51;
-        private const byte SOFT_RESET = 0x0F;
-
-        public const byte READ_ID_PART1 = 0xfa;
-        public const byte READ_ID_PART2 = 0x0f;
-        public const byte READ_2ND_ID_PART1 = 0xfc;
-        public const byte READ_2ND_ID_PART2 = 0xc9;
-
-        
-
-        
-
-        /// <summary>
-        ///     Specific device type / model
-        /// </summary>
-        public enum DeviceType
-        {
-            Unknown = 0x00,
-            Si7013 = 0x0d,
-            Si7020 = 0x14,
-            Si7021 = 0x15,
-            EngineeringSample = 0xff
-        }
-
-        /// <summary>
-        ///     Resolution of sensor data
-        /// </summary>
-        public enum SensorResolution : byte
-        {
-            TEMP14_HUM12 = 0x00,
-            TEMP12_HUM8 = 0x01,
-            TEMP13_HUM10 = 0x80,
-            TEMP11_HUM11 = 0x81,
-        }
-
-        
-
-        
-
-        /// <summary>
         ///     Create a new SI7021 temperature and humidity sensor.
         /// </summary>
         /// <param name="address">Sensor address (default to 0x40).</param>
         /// <param name="i2cBus">I2CBus (default to 100 KHz).</param>
         public Si70xx(II2cBus i2cBus, byte address = 0x40)
+            : base(i2cBus, address, 8, 3)
         {
-            si7021 = new I2cPeripheral(i2cBus, address);
-
             Initialize();
         }
 
-        
-
-        
+        protected void Reset()
+        {
+            Peripheral.Write(CMD_RESET);
+            Thread.Sleep(100);
+        }
 
         protected void Initialize()
         {
-            si7021.WriteByte(SOFT_RESET);
+            // write buffer for initialization commands only can be two bytes.
+            Span<byte> tx = WriteBuffer.Span[0..2];
 
-            Thread.Sleep(100);
+            Reset();
+
             //
             //  Get the device ID.
-            //
             SerialNumber = 0;
 
-            Span<byte> tx = stackalloc byte[2];
-            Span<byte> rx = stackalloc byte[8];
-            Span<byte> rx2 = stackalloc byte[6];
+            // this device is...interesting.  Most registers are 1-byte addressing, but a few are 2-bytes?
             tx[0] = READ_ID_PART1;
             tx[1] = READ_ID_PART2;
-            si7021.WriteRead(tx, rx);
-
-            for (var index = 0; index < 4; index++) {
+            Peripheral.Exchange(tx, ReadBuffer.Span);
+            for (var index = 0; index < 4; index++)
+            {
                 SerialNumber <<= 8;
-                SerialNumber += rx[index * 2];
+                SerialNumber += ReadBuffer.Span[index * 2];
             }
 
             tx[0] = READ_2ND_ID_PART1;
             tx[1] = READ_2ND_ID_PART2;
-            si7021.WriteRead(tx, rx2);
+            Peripheral.Exchange(tx, ReadBuffer.Span);
 
             SerialNumber <<= 8;
-            SerialNumber += rx2[0];
+            SerialNumber += ReadBuffer.Span[0];
             SerialNumber <<= 8;
-            SerialNumber += rx2[1];
+            SerialNumber += ReadBuffer.Span[1];
             SerialNumber <<= 8;
-            SerialNumber += rx2[3];
+            SerialNumber += ReadBuffer.Span[3];
             SerialNumber <<= 8;
-            SerialNumber += rx2[4];
-            if ((rx2[0] == 0) || (rx2[0] == 0xff)) {
+            SerialNumber += ReadBuffer.Span[4];
+            if ((ReadBuffer.Span[0] == 0) || (ReadBuffer.Span[0] == 0xff))
+            {
                 SensorType = DeviceType.EngineeringSample;
-            } else {
-                SensorType = (DeviceType)rx2[0];
+            }
+            else
+            {
+                SensorType = (DeviceType)ReadBuffer.Span[0];
             }
 
             SetResolution(SensorResolution.TEMP11_HUM11);
         }
 
-        
-
-        
-
-        /// <summary>
-        /// Convenience method to get the current sensor readings. For frequent reads, use
-        /// StartSampling() and StopSampling() in conjunction with the SampleBuffer.
-        /// </summary>
-        public async Task<AtmosphericConditions> Read()
+        protected async override Task<(Units.Temperature? Temperature, RelativeHumidity? Humidity)> ReadSensor()
         {
-            // update confiruation for a one-off read
-            this.Conditions = await ReadSensor();
+            (Units.Temperature Temperature, RelativeHumidity Humidity) conditions;
 
-            return Conditions;
-        }
-
-        protected async Task<AtmosphericConditions> ReadSensor()
-        {
-            AtmosphericConditions conditions = new AtmosphericConditions();
-
-            return await Task.Run(() => {
-                si7021.WriteByte(HUMDITY_MEASURE_NOHOLD);
-                //
-                //  Maximum conversion time is 12ms (page 5 of the datasheet).
-                //  
-                Thread.Sleep(25);
-                var data = si7021.ReadBytes(3);
-                var humidityReading = (ushort)((data[0] << 8) + data[1]);
-                conditions.Humidity = ((125 * (float)humidityReading) / 65536) - 6;
-                if (conditions.Humidity < 0) {
-                    conditions.Humidity = 0;
-                } else {
-                    if (conditions.Humidity > 100) {
-                        conditions.Humidity = 100;
+            return await Task.Run(() =>
+            {
+                // ---- HUMIDITY
+                Peripheral.Write(HUMDITY_MEASURE_NOHOLD);
+                Thread.Sleep(25); // Maximum conversion time is 12ms (page 5 of the datasheet).
+                Peripheral.Read(ReadBuffer.Span); // 2 data bytes plus a checksum (we ignore the checksum here)
+                var humidityReading = (ushort)((ReadBuffer.Span[0] << 8) + ReadBuffer.Span[1]);
+                conditions.Humidity = new RelativeHumidity(((125 * (float)humidityReading) / 65536) - 6, HU.Percent);
+                if (conditions.Humidity < new RelativeHumidity(0, HU.Percent))
+                {
+                    conditions.Humidity = new RelativeHumidity(0, HU.Percent);
+                }
+                else
+                {
+                    if (conditions.Humidity > new RelativeHumidity(100, HU.Percent))
+                    {
+                        conditions.Humidity = new RelativeHumidity(100, HU.Percent);
                     }
                 }
-                data = si7021.ReadRegisters(TEMPERATURE_MEASURE_PREVIOUS, 2);
-                var temperatureReading = (short)((data[0] << 8) + data[1]);
-                conditions.Temperature = (float)(((175.72 * temperatureReading) / 65536) - 46.85);
+
+                // ---- TEMPERATURE
+                Peripheral.Write(TEMPERATURE_MEASURE_NOHOLD);
+                Thread.Sleep(25); // Maximum conversion time is 12ms (page 5 of the datasheet).
+                Peripheral.Read(ReadBuffer.Span); // 2 data bytes plus a checksum (we ignore the checksum here)
+                var temperatureReading = (short)((ReadBuffer.Span[0] << 8) + ReadBuffer.Span[1]);
+                conditions.Temperature = new Units.Temperature((float)(((175.72 * temperatureReading) / 65536) - 46.85), TU.Celsius);
 
                 return conditions;
             });
         }
 
         /// <summary>
-        ///     Reset the sensor and take a fresh reading.
+        /// Inheritance-safe way to raise events and notify observers.
         /// </summary>
-        public void Reset()
+        /// <param name="changeResult"></param>
+        protected override void RaiseEventsAndNotify(IChangeResult<(Units.Temperature? Temperature, RelativeHumidity? Humidity)> changeResult)
         {
-            si7021.WriteByte(READ_USER_REGISTER);
-            Thread.Sleep(50);
-        }
-
-        public void StartUpdating(int standbyDuration = 1000)
-        {
-            // thread safety
-            lock (_lock) {
-                if (IsSampling) return;
-
-                // state muh-cheen
-                IsSampling = true;
-
-                SamplingTokenSource = new CancellationTokenSource();
-                CancellationToken ct = SamplingTokenSource.Token;
-
-                AtmosphericConditions oldConditions;
-                AtmosphericConditionChangeResult result;
-
-                Task.Factory.StartNew(async () => {
-                    while (true) {
-                        // cleanup
-                        if (ct.IsCancellationRequested) {
-                            // do task clean up here
-                            _observers.ForEach(x => x.OnCompleted());
-                            break;
-                        }
-                        // capture history
-                        oldConditions = AtmosphericConditions.From(Conditions);
-
-                        // read
-                        Conditions = await Read();
-
-                        // build a new result with the old and new conditions
-                        result = new AtmosphericConditionChangeResult(oldConditions, Conditions);
-
-                        // let everyone know
-                        RaiseChangedAndNotify(result);
-
-                        // sleep for the appropriate interval
-                        await Task.Delay(standbyDuration);
-                    }
-                }, SamplingTokenSource.Token);
+            if (changeResult.New.Temperature is { } temp)
+            {
+                TemperatureUpdated?.Invoke(this, new ChangeResult<Units.Temperature>(temp, changeResult.Old?.Temperature));
             }
-        }
-
-        protected void RaiseChangedAndNotify(AtmosphericConditionChangeResult changeResult)
-        {
-            Updated?.Invoke(this, changeResult);
-            base.NotifyObservers(changeResult);
-        }
-
-        /// <summary>
-        /// Stops sampling the temperature.
-        /// </summary>
-        public void StopUpdating()
-        {
-            lock (_lock) {
-                if (!IsSampling) return;
-
-                SamplingTokenSource?.Cancel();
-
-                // state muh-cheen
-                IsSampling = false;
+            if (changeResult.New.Humidity is { } humidity)
+            {
+                HumidityUpdated?.Invoke(this, new ChangeResult<Units.RelativeHumidity>(humidity, changeResult.Old?.Humidity));
             }
+
+            base.RaiseEventsAndNotify(changeResult);
         }
 
         /// <summary>
@@ -294,13 +170,14 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         /// <param name="onOrOff">Heater status, true = turn heater on, false = turn heater off.</param>
         public void Heater(bool onOrOff)
         {
-            var register = si7021.ReadRegister(READ_USER_REGISTER);
+            var register = Peripheral.ReadRegister((byte)Register.USER_REG_1);
             register &= 0xfd;
 
-            if (onOrOff) {
+            if (onOrOff)
+            {
                 register |= 0x02;
             }
-            si7021.WriteRegister(WRITE_USER_REGISTER, register);
+            Peripheral.WriteRegister((byte)Register.USER_REG_1, register);
         }
 
         //Set sensor resolution
@@ -314,21 +191,19 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         //Power on default is 0/0
         void SetResolution(SensorResolution resolution)
         {
-            byte userData = si7021.ReadRegister(READ_USER_REGISTER); //Go get the current register state
-                                                                     //userRegister &= 0b01111110; //Turn off the resolution bits
-                                                                     //resolution &= 0b10000001; //Turn off all other bits but resolution bits
-                                                                     //userRegister |= resolution; //Mask in the requested resolution bits
+            var register = Peripheral.ReadRegister((byte)Register.USER_REG_1);
+            //userRegister &= 0b01111110; //Turn off the resolution bits
+            //resolution &= 0b10000001; //Turn off all other bits but resolution bits
+            //userRegister |= resolution; //Mask in the requested resolution bits
+
             var res = (byte)resolution;
 
-            userData &= 0x73; //Turn off the resolution bits
+            register &= 0x73; //Turn off the resolution bits
             res &= 0x81; //Turn off all other bits but resolution bits
-            userData |= res; //Mask in the requested resolution bits
+            register |= res; //Mask in the requested resolution bits
 
             //Request a write to user register
-            si7021.WriteBytes(new byte[] { WRITE_USER_REGISTER }); //Write to the user register
-            si7021.WriteBytes(new byte[] { userData }); //Write the new resolution bits
+            Peripheral.WriteRegister((byte)Register.USER_REG_1, register); //Write the new resolution bits
         }
-
-        
     }
 }

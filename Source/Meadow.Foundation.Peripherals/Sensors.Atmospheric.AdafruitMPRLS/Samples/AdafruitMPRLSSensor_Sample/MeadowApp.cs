@@ -1,13 +1,12 @@
-﻿using System;
-using System.Threading;
-using Meadow;
+﻿using Meadow;
 using Meadow.Devices;
-using Meadow.Foundation;
-using Meadow.Foundation.Leds;
 using Meadow.Foundation.Sensors.Atmospheric;
+using Meadow.Units;
+using System;
 
 namespace AdafruitMPRLSSensorExample
 {
+    // TODO: this app needs rewritten
     /// <summary>
     /// Connect VIN to 3.3v
     /// Connect GND to ground
@@ -16,7 +15,7 @@ namespace AdafruitMPRLSSensorExample
     /// </summary>
     public class MeadowApp : App<F7Micro, MeadowApp>
     {
-        AdafruitMPRLSSensor PressureSensor;
+        AdafruitMPRLS PressureSensor;
 
         public MeadowApp()
         {
@@ -25,20 +24,20 @@ namespace AdafruitMPRLSSensorExample
 
         void Initialize()
         {
-            PressureSensor = new AdafruitMPRLSSensor(Device.CreateI2cBus());
+            PressureSensor = new AdafruitMPRLS(Device.CreateI2cBus());
 
-            PressureSensor.StartUpdating();
+            PressureSensor.StartUpdating(TimeSpan.FromSeconds(1));
 
             PressureSensor.Updated += PressureSensor_Updated;
         }
 
-        private void PressureSensor_Updated(object sender, Meadow.Peripherals.Sensors.Atmospheric.AtmosphericConditionChangeResult e)
+        private void PressureSensor_Updated(object sender, IChangeResult<(Pressure? Pressure, Pressure? RawPsiMeasurement)> result)
         {
-            Console.WriteLine($"new pressure PSI: {e.New.Pressure}, old pressure PSI: {e.Old.Pressure}");
+            Console.WriteLine($"New pressure PSI: {result.New.Pressure?.Psi}, Old pressure PSI: {result.Old?.Pressure?.Psi}");
 
-            Console.WriteLine($"pressure in hPA: {PressureSensor.CalculatedhPAMeasurement}");
+            Console.WriteLine($"Pressure in Pascal: {result.New.Pressure?.Pascal}");
 
-            Console.WriteLine($"raw sensor value: {PressureSensor.RawPSIMeasurement}");
+            Console.WriteLine($"Raw sensor value: {result.New.RawPsiMeasurement?.Psi}");
         }
     }
 }

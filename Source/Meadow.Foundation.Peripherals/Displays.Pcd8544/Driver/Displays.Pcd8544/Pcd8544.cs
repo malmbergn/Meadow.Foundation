@@ -1,4 +1,4 @@
-using System;
+using Meadow.Devices;
 using Meadow.Hardware;
 
 namespace Meadow.Foundation.Displays
@@ -26,12 +26,12 @@ namespace Meadow.Foundation.Displays
         protected IDigitalOutputPort resetPort;
         protected IDigitalOutputPort chipSelectPort;
         protected ISpiPeripheral spiDisplay;
-        protected SpiBus spi;
+        protected ISpiBus spi;
 
         protected byte[] displayBuffer;
         protected readonly byte[] spiReceive;
 
-        public Pcd8544(IIODevice device, ISpiBus spiBus, IPin chipSelectPin, IPin dcPin, IPin resetPin)
+        public Pcd8544(IMeadowDevice device, ISpiBus spiBus, IPin chipSelectPin, IPin dcPin, IPin resetPin)
         {
             displayBuffer = new byte[Width * Height / 8];
             spiReceive = new byte[Width * Height / 8];
@@ -40,7 +40,7 @@ namespace Meadow.Foundation.Displays
             resetPort = device.CreateDigitalOutputPort(resetPin, true);
             chipSelectPort = device.CreateDigitalOutputPort(chipSelectPin);
 
-            spi = (SpiBus)spiBus;
+            spi = spiBus;
             spiDisplay = new SpiPeripheral(spiBus, chipSelectPort);
 
             Initialize();

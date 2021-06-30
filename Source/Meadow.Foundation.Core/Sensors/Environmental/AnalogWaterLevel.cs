@@ -1,107 +1,81 @@
-﻿using Meadow.Hardware;
+﻿using Meadow.Devices;
+using Meadow.Hardware;
+using Meadow.Units;
 using System;
 using System.Threading.Tasks;
 
 namespace Meadow.Foundation.Sensors.Environmental
 {
-    public class AnalogWaterLevel
-        : FilterableChangeObservableBase<FloatChangeResult, float>
+    public partial class AnalogWaterLevel
+        : SensorBase<float>
     {
-        /// <summary>
-        /// Raised when the value of the reading changes.
-        /// </summary>
-        public event EventHandler<FloatChangeResult> Updated = delegate { };
+        //==== internals
+        protected IAnalogInputPort AnalogInputPort { get; }
+        protected int sampleCount = 5;
+        protected int sampleIntervalMs = 40;
 
-        /// <summary>
-        ///     Calibration class for new sensor types.  This allows new sensors
-        ///     to be used with this class.
-        /// </summary>
-        public class Calibration
-        {
-
-            public float VoltsAtZero { get; protected set; } = 1f;
-
-            /// <summary>
-            ///     Linear change in the sensor output (in millivolts) per 1 mm
-            ///     change in temperature.
-            /// </summary>
-            public float VoltsPerCentimeter { get; protected set; } = 0.25f;
-
-            /// <summary>
-            ///     Default constructor. Create a new Calibration object with default values
-            ///     for the properties.
-            /// </summary>
-            public Calibration()
-            {
-            }
-
-            /// <summary>
-            ///     Create a new Calibration object using the specified values.
-            /// </summary>
-            /// <param name="millivoltsPerMillimeter">Millivolt change per degree centigrade (from the data sheet).</param>
-            public Calibration(float voltsPerCentimeter, float voltsAtZeo)
-            {
-                VoltsPerCentimeter = voltsPerCentimeter;
-                VoltsAtZero = voltsAtZeo;
-            }
-        }
-
-        public IAnalogInputPort AnalogInputPort { get; protected set; }
-
+        //==== properties
         public Calibration LevelCalibration { get; protected set; }
 
         public float WaterLevel { get; protected set; }
 
         /// <summary>
-        ///     Default constructor, private to prevent this being used.
-        /// </summary>
-        private AnalogWaterLevel()
-        {
-        }
-
-        /// <summary>
         ///     New instance of the AnalogWaterLevel class.
         /// </summary>
-        /// <param name="analogPin">Analog pin the temperature sensor is connected to.</param>
-        /// <param name="sensorType">Type of sensor attached to the analog port.</param>
-        /// <param name="calibration">Calibration for the analog temperature sensor. Only used if sensorType is set to Custom.</param>
+        /// <param name="device">The `IAnalogInputController` to create the port on.</param>
+        /// <param name="analogPin">Analog pin the sensor is connected to.</param>
+        /// <param name="calibration">Calibration for the analog sensor.</param> // TODO: @Jorge, what's this mean?
+        /// <param name="updateIntervalMs">The time, in milliseconds, to wait
+        /// between sets of sample readings. This value determines how often
+        /// `Changed` events are raised and `IObservable` consumers are notified.</param>
+        /// <param name="sampleCount">How many samples to take during a given
+        /// reading. These are automatically averaged to reduce noise.</param>
+        /// <param name="sampleIntervalMs">The time, in milliseconds,
+        /// to wait in between samples during a reading.</param>
         public AnalogWaterLevel(
-            IIODevice device,
+            IAnalogInputController device,
             IPin analogPin,
-            Calibration calibration = null
-            ) : this(device.CreateAnalogInputPort(analogPin), calibration)
+            Calibration? calibration = null,
+            int updateIntervalMs = 1000,
+            int sampleCount = 5, int sampleIntervalMs = 40)
+                : this(device.CreateAnalogInputPort(analogPin), calibration)
         {
+            base.UpdateInterval = TimeSpan.FromMilliseconds(updateIntervalMs);
+            this.sampleCount = sampleCount;
+            this.sampleIntervalMs = sampleIntervalMs;
         }
 
         public AnalogWaterLevel(IAnalogInputPort analogInputPort,
-                                 Calibration calibration = null)
+                                 Calibration? calibration = null)
         {
             AnalogInputPort = analogInputPort;
 
             //
             //  If the calibration object is null use the defaults for TMP35.
             //
-            LevelCalibration = calibration;
-            if (LevelCalibration == null) { LevelCalibration = new Calibration(); }
+            LevelCalibration = calibration ?? new Calibration();
 
             // wire up our observable
             AnalogInputPort.Subscribe
             (
-                new FilterableChangeObserver<FloatChangeResult, float>(
+                IAnalogInputPort.CreateObserver(
                     h => {
+                        // capture the old water leve.
+                        var oldWaterLevel = WaterLevel;
+                        //var oldWaterLevel = VoltageToWaterLevel(h.Old);
+
+                        // get the new one
                         var newWaterLevel = VoltageToWaterLevel(h.New);
-                        var oldWaterLevel = VoltageToWaterLevel(h.Old);
                         WaterLevel = newWaterLevel; // save state
 
-                        RaiseEventsAndNotify
-                        (
-                            new FloatChangeResult(newWaterLevel, oldWaterLevel)
+                        base.RaiseEventsAndNotify(
+                            new ChangeResult<float>(newWaterLevel, oldWaterLevel)
                         );
                     }
                 )
            );
         }
-
+        
         /// <summary>
         /// Convenience method to get the current temperature. For frequent reads, use
         /// StartSampling() and StopSampling() in conjunction with the SampleBuffer.
@@ -111,10 +85,10 @@ namespace Meadow.Foundation.Sensors.Environmental
         /// <param name="sampleIntervalDuration">The time, in milliseconds,
         /// to wait in between samples during a reading.</param>
         /// <returns>A float value that's ann average value of all the samples taken.</returns>
-        public async Task<float> Read(int sampleCount = 10, int sampleIntervalDuration = 40)
+        protected override async Task<float> ReadSensor()
         {
             // read the voltage
-            float voltage = await AnalogInputPort.Read(sampleCount, sampleIntervalDuration);
+            Voltage voltage = await AnalogInputPort.Read();
 
             // convert and save to our temp property for later retreival
             WaterLevel = VoltageToWaterLevel(voltage);
@@ -130,19 +104,13 @@ namespace Meadow.Foundation.Sensors.Environmental
         /// subscribers getting notified. Use the `readIntervalDuration` parameter
         /// to specify how often events and notifications are raised/sent.
         /// </summary>
-        /// <param name="sampleCount">How many samples to take during a given
-        /// reading. These are automatically averaged to reduce noise.</param>
-        /// <param name="sampleIntervalDuration">The time, in milliseconds,
-        /// to wait in between samples during a reading.</param>
-        /// <param name="standbyDuration">The time, in milliseconds, to wait
-        /// between sets of sample readings. This value determines how often
-        /// `Changed` events are raised and `IObservable` consumers are notified.</param>
-        public void StartUpdating(
-            int sampleCount = 10,
-            int sampleIntervalDuration = 40,
-            int standbyDuration = 100)
+        /// <param name="updateInterval">A `TimeSpan` that specifies how long to
+        /// wait between readings. This value influences how often `*Updated`
+        /// events are raised and `IObservable` consumers are notified.
+        /// The default is 5 seconds.</param>
+        public void StartUpdating(TimeSpan? updateInterval)
         {
-            AnalogInputPort.StartSampling(sampleCount, sampleIntervalDuration, standbyDuration);
+            AnalogInputPort.StartUpdating(updateInterval);
         }
 
         /// <summary>
@@ -150,13 +118,7 @@ namespace Meadow.Foundation.Sensors.Environmental
         /// </summary>
         public void StopUpdating()
         {
-            AnalogInputPort.StopSampling();
-        }
-
-        protected void RaiseEventsAndNotify(FloatChangeResult changeResult)
-        {
-            Updated?.Invoke(this, changeResult);
-            base.NotifyObservers(changeResult);
+            AnalogInputPort.StopUpdating();
         }
 
         /// <summary>
@@ -165,13 +127,13 @@ namespace Meadow.Foundation.Sensors.Environmental
         /// </summary>
         /// <param name="voltage"></param>
         /// <returns></returns>
-        protected float VoltageToWaterLevel(float voltage)
+        protected float VoltageToWaterLevel(Voltage voltage)
         {
             if(voltage <= LevelCalibration.VoltsAtZero)
             {
                 return 0;
             }
-            return (voltage - LevelCalibration.VoltsAtZero) / LevelCalibration.VoltsPerCentimeter;
+            return (float)((voltage.Volts - LevelCalibration.VoltsAtZero.Volts) / LevelCalibration.VoltsPerCentimeter.Volts);
         }
     }
 }

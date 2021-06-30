@@ -1,9 +1,11 @@
-﻿using Meadow.Hardware;
-using Meadow.Peripherals.Sensors.Atmospheric;
-using System;
+﻿using System;
 using System.Collections;
 using System.Threading;
 using System.Threading.Tasks;
+using Meadow.Hardware;
+using Meadow.Peripherals.Sensors;
+using Meadow.Units;
+using Meadow.Utilities;
 
 namespace Meadow.Foundation.Sensors.Atmospheric
 {
@@ -12,22 +14,22 @@ namespace Meadow.Foundation.Sensors.Atmospheric
     /// https://www.adafruit.com/product/3965
     /// Device datasheets also available here: https://sensing.honeywell.com/micropressure-mpr-series
     /// </summary>
-    public class AdafruitMPRLSSensor : FilterableChangeObservableBase<AtmosphericConditionChangeResult, AtmosphericConditions>, IAtmosphericSensor
+    public class AdafruitMPRLS : ByteCommsSensorBase<(Pressure? Pressure, Pressure? RawPsiMeasurement)>, IBarometricPressureSensor
     {
-        private readonly II2cPeripheral i2cPeripheral;
+        //==== events
+        public event EventHandler<IChangeResult<Pressure>> PressureUpdated = delegate { };
 
+        //==== internals
         //Defined in section 6.6.1 of the datasheet.
         private readonly byte[] mprlsMeasurementCommand = { 0xAA, 0x00, 0x00 };
-        private object _lock = new object();
-        private CancellationTokenSource samplingTokenSource;
 
-        public AtmosphericConditions Conditions { get; protected set; } = new AtmosphericConditions();
+        private int psiMin => 0;
+        private int psiMax => 25;
 
-        /// <summary>
-        /// Indicates that the sensor is in use.
-        /// </summary>
-        public bool IsSampling { get; set; } = false;
+        //This value is set by the manufacturer and can't be changed.
+        public const byte Address = 0x18;
 
+        //==== properties
         /// <summary>
         /// Set by the sensor, to tell us it has power.
         /// </summary>
@@ -44,162 +46,83 @@ namespace Meadow.Foundation.Sensors.Atmospheric
         public bool HasMemoryIntegrityFailed { get; set; }
 
         /// <summary>
-        /// Convienence property to get the raw measurement from the sensor.
+        /// 
         /// </summary>
-        public float RawPSIMeasurement { get; set; }
+        public Pressure? RawPsiMeasurement => Conditions.RawPsiMeasurement;
 
-        /// <summary>
-        /// Convienence property to get the calculated PSI measurement from the sensor.
-        /// </summary>
-        public float CalculatedPSIMeasurement { get; set; }
-
-        /// <summary>
-        /// Convienence property to get the hPa PSI measurement from the sensor.
-        /// </summary>
-        public double CalculatedhPAMeasurement { get; set; }
-        public float hPaMeasurement { get; set; }
+        public Pressure? Pressure => Conditions.Pressure;
 
         //Tells us that the sensor has reached its pressure limit.
         public bool InternalMathSaturated { get; set; }
 
-        private int psiMin { get; set; } = 0;
-        private int psiMax { get; set; } = 25;
 
-        private AtmosphericConditions oldConditions { get; set; }
-
-        //This value is set by the manufacturer and can't be changed.
-        public const byte Address = 0x18;
-
-        public float Pressure => Conditions.Pressure.Value;
-
-        public event EventHandler<AtmosphericConditionChangeResult> Updated;
-
-        protected void RaiseChangedAndNotify(AtmosphericConditionChangeResult changeResult)
+        protected override void RaiseEventsAndNotify(IChangeResult<(Pressure? Pressure, Pressure? RawPsiMeasurement)> changeResult)
         {
-            Updated?.Invoke(this, changeResult);
-            base.NotifyObservers(changeResult);
+            if (changeResult.New.Pressure is { } pressure) {
+                PressureUpdated?.Invoke(this, new ChangeResult<Pressure>(pressure, changeResult.Old?.Pressure));
+            }
+            base.RaiseEventsAndNotify(changeResult);
         }
 
-        public AdafruitMPRLSSensor(II2cBus i2cbus, int psiMin = 0, int psiMax = 25)
+        public AdafruitMPRLS(II2cBus i2cbus, int psiMin = 0, int psiMax = 25)
+            : base(i2cbus, Address)
         {
-            i2cPeripheral = new I2cPeripheral(i2cbus, Address);
         }
 
-        public async Task<AtmosphericConditions> Read()
+        protected override async Task<(Pressure? Pressure, Pressure? RawPsiMeasurement)> ReadSensor()
         {
-            await Update();
+            return await Task.Run(async () => {
+                //Send the command to the sensor to tell it to do the thing.
+                Peripheral.Write(mprlsMeasurementCommand);
 
-            return Conditions;
-        }
+                //Datasheet says wait 5 ms.
+                await Task.Delay(5);
 
-        public void StartUpdating(int readFrequencyMs = 1000)
-        {
-            lock (_lock)
-            {
-                if (this.IsSampling)
-                {
-                    return;
-                }
+                while (true) {
+                    Peripheral.Read(ReadBuffer.Span[0..1]);
 
-                IsSampling = true;
+                    //From section 6.5 of the datasheet.
+                    IsDevicePowered = BitHelpers.GetBitValue(ReadBuffer.Span[0], 6);
+                    IsDeviceBusy = BitHelpers.GetBitValue(ReadBuffer.Span[0], 5);
+                    HasMemoryIntegrityFailed = BitHelpers.GetBitValue(ReadBuffer.Span[0], 2);
+                    InternalMathSaturated = BitHelpers.GetBitValue(ReadBuffer.Span[0], 0);
 
-                samplingTokenSource = new CancellationTokenSource();
-                CancellationToken cancellationToken = samplingTokenSource.Token;
-
-                Task.Factory.StartNew(async () =>
-                {
-                    while (true)
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            _observers.ForEach(x => x.OnCompleted());
-                            break;
-                        }
-
-                        oldConditions = AtmosphericConditions.From(Conditions);
-
-                        await Update();
-
-                        AtmosphericConditionChangeResult changeResult = new AtmosphericConditionChangeResult(Conditions, oldConditions);
-
-                        RaiseChangedAndNotify(changeResult);
-
-                        await Task.Delay(readFrequencyMs);
+                    if (InternalMathSaturated) {
+                        throw new InvalidOperationException("Sensor pressure has exceeded max value!");
                     }
-                });
-            }
-        }
 
-        public void StopUpdating()
-        {
-            lock (_lock)
-            {
-                if (!IsSampling) return;
+                    if (HasMemoryIntegrityFailed) {
+                        throw new InvalidOperationException("Sensor internal memory integrity check failed!");
+                    }
 
-                samplingTokenSource?.Cancel();
-
-                IsSampling = false;
-            }
-        }
-
-        private async Task Update()
-        {
-            byte[] readBuffer;
-            BitArray bufferBits;
-
-            //Send the command to the sensor to tell it to do the thing.
-            i2cPeripheral.WriteBytes(mprlsMeasurementCommand);
-
-            //Datasheet says wait 5 ms.
-            await Task.Delay(5);
-
-            while (true)
-            {
-                readBuffer = i2cPeripheral.ReadBytes(1);
-                bufferBits = new BitArray(readBuffer);
-
-                //From section 6.5 of the datasheet.
-                this.IsDevicePowered = bufferBits[6];
-                this.IsDeviceBusy = bufferBits[5];
-                this.HasMemoryIntegrityFailed = bufferBits[2];
-                this.InternalMathSaturated = bufferBits[0];
-
-                if (this.InternalMathSaturated)
-                {
-                    throw new InvalidOperationException("Sensor pressure has exceeded max value!");
+                    if (!(IsDeviceBusy)) {
+                        break;
+                    }
                 }
 
-                if (this.HasMemoryIntegrityFailed)
-                {
-                    throw new InvalidOperationException("Sensor internal memory integrity check failed!");
-                }
+                Peripheral.Read(ReadBuffer.Span[0..4]);
 
-                if (!(this.IsDeviceBusy))
-                {
-                    break;
-                }
-            }
+                var rawPSIMeasurement = (ReadBuffer.Span[1] << 16) | (ReadBuffer.Span[2] << 8) | ReadBuffer.Span[3];
+                //Console.WriteLine(RawPSIMeasurement);
 
-            readBuffer = i2cPeripheral.ReadBytes(4);
+                //From Section 8.0 of the datasheet.
+                var calculatedPSIMeasurement = (rawPSIMeasurement - 1677722) * (psiMax - psiMin);
+                //Console.WriteLine(CalculatedPSIMeasurement);
 
-            RawPSIMeasurement = (readBuffer[1] << 16) | (readBuffer[2] << 8) | readBuffer[3];
-            //Console.WriteLine(RawPSIMeasurement);
+                calculatedPSIMeasurement /= 15099494 - 1677722;
+                //Console.WriteLine(CalculatedPSIMeasurement);
 
-            //From Section 8.0 of the datasheet.
-            CalculatedPSIMeasurement = (RawPSIMeasurement - 1677722) * (psiMax - psiMin);
-            //Console.WriteLine(CalculatedPSIMeasurement);
+                calculatedPSIMeasurement += psiMin;
+                //Console.WriteLine(CalculatedPSIMeasurement);
 
-            CalculatedPSIMeasurement /= 15099494 - 1677722;
-            //Console.WriteLine(CalculatedPSIMeasurement);
+                (Pressure? Pressure, Pressure? RawPsiMeasurement) conditions;
 
-            CalculatedPSIMeasurement += psiMin;
-            //Console.WriteLine(CalculatedPSIMeasurement);
+                conditions.RawPsiMeasurement = new Pressure(rawPSIMeasurement, Units.Pressure.UnitType.Psi);
+                conditions.Pressure = new Pressure(calculatedPSIMeasurement, Units.Pressure.UnitType.Psi);
 
-            //https://www.justintools.com/unit-conversion/pressure.php?k1=psi&k2=millibars
-            CalculatedhPAMeasurement = CalculatedPSIMeasurement * 68.947572932;
-            //Console.WriteLine(CalculatedhPAMeasurement);
+                return conditions;
+            });
 
-            Conditions.Pressure = CalculatedPSIMeasurement;
         }
     }
 }

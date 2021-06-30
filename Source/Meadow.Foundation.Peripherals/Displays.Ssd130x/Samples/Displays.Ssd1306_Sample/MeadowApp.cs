@@ -2,7 +2,7 @@
 using System.Threading;
 using Meadow;
 using Meadow.Devices;
-using Meadow.Foundation.Displays;
+using Meadow.Foundation.Displays.Ssd130x;
 using Meadow.Foundation.Graphics;
 
 namespace Displays.Ssd1306_Sample
@@ -82,6 +82,8 @@ namespace Displays.Ssd1306_Sample
                 Thread.Sleep(50);
             }
 
+            Console.WriteLine("Finished.");
+
             Thread.Sleep(Timeout.Infinite);
         }
 
@@ -106,7 +108,7 @@ namespace Displays.Ssd1306_Sample
 
             display = new Ssd1306
             (
-                i2cBus: Device.CreateI2cBus(), 
+                i2cBus: Device.CreateI2cBus(Meadow.Hardware.I2cBusSpeed.FastPlus), 
                 address: 60, 
                 displayType: Ssd1306.DisplayType.OLED128x32
             );
